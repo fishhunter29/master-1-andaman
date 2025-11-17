@@ -1,0 +1,13 @@
+[
+  {
+    "id": "light_sound_show",
+    "name": "Cellular Jail Light & Sound Show",
+    "basePriceINR": 300,
+    "islands": [
+      "Port Blair (South Andaman)"
+    ],
+    "durationHrs": 1.5,
+    "brief": "Historic audio-visual show at Cellular Jail narrating the freedom struggle.",
+    "image": ""
+  }
+]

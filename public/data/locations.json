@@ -1,0 +1,19 @@
+[
+  {
+    "id": "PB002",
+    "island": "Port Blair (South Andaman)",
+    "name": "Cellular Jail",
+    "moods": [
+      "family",
+      "romantic"
+    ],
+    "brief": "National memorial and key historic site; evening Light & Sound show available.",
+    "durationHrs": 2,
+    "bestTimes": [
+      "Year-round"
+    ],
+    "suggestedAdventureIds": [
+      "light_sound_show"
+    ]
+  }
+]
