@@ -1,10 +1,12 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import MobileSummaryBar from "./components/MobileSummaryBar.jsx";
 
-/** =========================
- *  Helpers (safe + simple)
- *  ========================= */
-const safeNum = (n) => (typeof n === "number" && isFinite(n) ? n : 0);
+/* -----------------------------------
+   Helpers & Normalisers
+------------------------------------ */
+const safeNum = (n) =>
+  typeof n === "number" && isFinite(n) ? n : 0;
+
 const formatINR = (n) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -19,39 +21,54 @@ const addDays = (yyyy_mm_dd, n) => {
   return d.toISOString().slice(0, 10);
 };
 
-// Heuristic: infer "moods" for a location if not provided in data
+// Normalise locations no matter how JSON is shaped
+function normalizeLocation(raw) {
+  const name = raw.name || raw.location || "Unnamed spot";
+  const durationHrs =
+    Number.isFinite(raw.durationHrs) ? raw.durationHrs :
+    Number.isFinite(raw.typicalHours) ? raw.typicalHours : 2;
+  const bestTimes = Array.isArray(raw.bestTimes)
+    ? raw.bestTimes
+    : raw.bestTime
+    ? [raw.bestTime]
+    : [];
+  const moods = Array.isArray(raw.moods) ? raw.moods : null;
+  const image = raw.image || "";
+
+  return {
+    ...raw,
+    name,
+    durationHrs,
+    bestTimes,
+    moods,
+    image,
+  };
+}
+
 function inferMoods(loc) {
   const moods = new Set();
-  const interest = (loc.interest || "").toLowerCase();
-  const name = (loc.name || "").toLowerCase();
+  const text = `${loc.name || ""} ${loc.brief || ""}`.toLowerCase();
   const dur = Number.isFinite(loc.durationHrs) ? loc.durationHrs : 2;
 
   if (dur <= 2) moods.add("Relaxed");
   if (dur >= 3) moods.add("Balanced");
   if (dur >= 4) moods.add("Active");
 
-  if (/snorkel|scuba|dive|trek|kayak|surf|jet|parasail/.test(interest))
+  if (/snorkel|scuba|dive|trek|kayak|surf|jet|parasail|surf/.test(text))
     moods.add("Adventure");
-  if (/beach|sunset|view|cove|lagoon|mangrove/.test(interest))
-    moods.add("Relaxed");
-  if (/museum|culture|heritage|jail|cellular|memorial/.test(interest))
+  if (/beach|sunset|view|cove|lagoon|bay|sandbar/.test(text))
+    moods.add("Romantic");
+  if (/museum|culture|heritage|jail|cellular|memorial|museum/.test(text))
     moods.add("Family");
-  if (/wildlife|reef|coral|mangrove|bird|nature|peak/.test(interest))
+  if (/wildlife|reef|coral|mangrove|bird|nature|peak|national park/.test(text))
     moods.add("Photography");
-  if (
-    /lighthouse|mangrove|cave|long island|mud volcano|baratang|ross|smith|saddle peak/.test(
-      name
-    )
-  )
+  if (/lighthouse|mangrove|cave|long island|mud volcano|baratang|saddle peak|remote/.test(text))
     moods.add("Offbeat");
 
-  if (moods.size === 0) moods.add("Balanced");
+  if (!moods.size) moods.add("Balanced");
   return Array.from(moods);
 }
 
-/** =========================
- *  Static constants
- *  ========================= */
 const DEFAULT_ISLANDS = [
   "Port Blair (South Andaman)",
   "Havelock (Swaraj Dweep)",
@@ -63,8 +80,8 @@ const DEFAULT_ISLANDS = [
   "Little Andaman",
 ];
 
-// Pricing (placeholder logic you can tune later)
-const FERRY_BASE_ECON = 1500; // per pax, per leg
+// Pricing
+const FERRY_BASE_ECON = 1500;
 const FERRY_CLASS_MULT = { Economy: 1, Deluxe: 1.4, Luxury: 1.9 };
 
 const CAB_MODELS = [
@@ -73,16 +90,16 @@ const CAB_MODELS = [
   { id: "innova", label: "Toyota Innova", dayRate: 3800 },
   { id: "traveller", label: "Tempo Traveller (12)", dayRate: 5200 },
 ];
+
 const P2P_RATE_PER_HOP = 500;
 const SCOOTER_DAY_RATE = 800;
 
-const SEATMAP_URL = "https://seatmap.example.com"; // replace with real URL later
+const SEATMAP_URL = "https://seatmap.example.com";
 
-/** ==========================================
- *  Itinerary generator (duration-aware)
- *  Packs ~7h/day & inserts ferries, Day 1 = Airport
- *  End day forces Airport Departure
- *  ========================================== */
+/* -----------------------------------
+   Itinerary generator
+------------------------------------ */
+
 function orderByBestTime(items) {
   const rank = (it) => {
     const arr = (it.bestTimes || []).map((x) => String(x).toLowerCase());
@@ -94,9 +111,12 @@ function orderByBestTime(items) {
   return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
+// Always: Day 1 = arrival at IXZ
+// Always: last day = mandatory departure from IXZ
 function generateItineraryDays(selectedLocs, startFromPB = true) {
   const days = [];
-  // Day 1 always starts with Airport Arrival in Port Blair
+
+  // Day 1: arrival
   days.push({
     island: "Port Blair (South Andaman)",
     items: [
@@ -107,7 +127,7 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
   });
 
   if (!selectedLocs.length) {
-    // still ensure the last day ends with departure
+    // still ensure mandatory departure day
     days.push({
       island: "Port Blair (South Andaman)",
       items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
@@ -122,35 +142,27 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
     (byIsland[l.island] ||= []).push(l);
   });
 
-  // sort islands; PB first if present
+  // island visit order
   let order = Object.keys(byIsland).sort(
     (a, b) => DEFAULT_ISLANDS.indexOf(a) - DEFAULT_ISLANDS.indexOf(b)
   );
   if (startFromPB) {
     const pb = "Port Blair (South Andaman)";
     if (order.includes(pb)) order = [pb, ...order.filter((x) => x !== pb)];
-    else order = [pb, ...order]; // ensure PB day exists for return logic
+    else order = [pb, ...order];
   }
 
-  // per island → bucket into days by ~7h (aim 2–4 stops/day)
+  // Fill days ~7 hours per day
   order.forEach((island, idx) => {
     const locs = orderByBestTime(byIsland[island] || []);
-    let dayBucket = [];
+    let bucket = [];
     let timeUsed = 0;
 
-    const flushDay = () => {
-      if (!dayBucket.length) return;
-      if (dayBucket.length === 1 && locs.length) {
-        const next = locs.shift();
-        if (next) {
-          const dur = Number.isFinite(next.durationHrs) ? next.durationHrs : 2;
-          dayBucket.push(next);
-          timeUsed += dur;
-        }
-      }
+    const flush = () => {
+      if (!bucket.length) return;
       days.push({
         island,
-        items: dayBucket.map((x) => ({
+        items: bucket.map((x) => ({
           type: "location",
           ref: x.id,
           name: x.name,
@@ -158,27 +170,26 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
           bestTimes: x.bestTimes || [],
         })),
         transport:
-          dayBucket.length >= 3
+          bucket.length >= 3
             ? "Day Cab"
             : /Havelock|Neil/.test(island)
             ? "Scooter"
             : "Point-to-Point",
       });
-      dayBucket = [];
+      bucket = [];
       timeUsed = 0;
     };
 
     while (locs.length) {
       const x = locs.shift();
       const dur = Number.isFinite(x.durationHrs) ? x.durationHrs : 2;
-      const wouldBe = timeUsed + dur;
-      if (dayBucket.length >= 4 || wouldBe > 7) flushDay();
-      dayBucket.push(x);
+      const would = timeUsed + dur;
+      if (bucket.length >= 4 || would > 7) flush();
+      bucket.push(x);
       timeUsed += dur;
     }
-    flushDay();
+    flush();
 
-    // insert ferry leg if moving to next island
     const nextIsland = order[idx + 1];
     if (nextIsland) {
       days.push({
@@ -195,12 +206,11 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
     }
   });
 
-  // Force final day = Airport Departure in Port Blair
+  // Ensure we end back at PB + mandatory departure
   const lastIsland = days[days.length - 1]?.island;
-  if (lastIsland !== "Port Blair (South Andaman)") {
-    // insert ferry back to PB then departure
+  if (lastIsland && lastIsland !== "Port Blair (South Andaman)") {
     days.push({
-      island: lastIsland || "—",
+      island: lastIsland,
       items: [
         {
           type: "ferry",
@@ -210,6 +220,7 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
       transport: "—",
     });
   }
+
   days.push({
     island: "Port Blair (South Andaman)",
     items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
@@ -219,67 +230,84 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
   return days;
 }
 
-/** =========================
- *  App Component
- *  ========================= */
+/* -----------------------------------
+   Main App component
+------------------------------------ */
+
 export default function App() {
-  // Load real data from /public/data
-  const [locations, setLocations] = useState([]);
+  // Data state
+  const [rawLocations, setRawLocations] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [ferries, setFerries] = useState([]);
   const [locAdventures, setLocAdventures] = useState([]);
   const [dataStatus, setDataStatus] = useState("loading"); // loading | ready | error
 
+  // Trip basics
+  const [step, setStep] = useState(0);
+  const [startDate, setStartDate] = useState("");
+  const [adults, setAdults] = useState(2);
+  const [infants, setInfants] = useState(0);
+  const [startPB, setStartPB] = useState(true);
+
+  // Location selection
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [islandFilter, setIslandFilter] = useState("All");
+  const [moodFilter, setMoodFilter] = useState("All");
+
+  // Itinerary / transport
+  const [days, setDays] = useState([]);
+  const [scooterIslands, setScooterIslands] = useState(() => new Set());
+  const [chosenHotels, setChosenHotels] = useState({});
+  const [essentials, setEssentials] = useState({
+    ferryClass: "Deluxe",
+    cabModelId: CAB_MODELS[1].id,
+  });
+
+  // Adventures
+  const [addonIds, setAddonIds] = useState([]);
+
+  // Location modal
+  const [openLoc, setOpenLoc] = useState(null);
+
+  // Load JSON data once
   useEffect(() => {
-    (async () => {
-      const withTimeout = (promise, ms, label) =>
-        Promise.race([
-          promise,
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error(`${label} timed out after ${ms}ms`)),
-              ms
-            )
-          ),
-        ]);
+    const withTimeout = (promise, ms, label) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`${label} timed out after ${ms}ms`)),
+            ms
+          )
+        ),
+      ]);
 
-      const fetchJSON = async (path, label) => {
-        try {
-          const res = await withTimeout(
-            fetch(path, { cache: "no-store" }),
-            8000,
-            label
-          );
-          if (!res.ok) throw new Error(`${label} ${res.status} ${res.statusText}`);
-          const ct = res.headers.get("content-type") || "";
-          if (!ct.includes("application/json")) {
-            throw new Error(`${label} returned non-JSON content-type: ${ct}`);
-          }
-          return res.json();
-        } catch (e) {
-          console.error(`[data] ${label} failed:`, e);
-          return null; // allow partial success
-        }
-      };
-
+    const fetchJSON = async (path, label) => {
       try {
-        const [locs, acts, fers, map] = await Promise.all([
+        const res = await withTimeout(fetch(path, { cache: "no-store" }), 8000, label);
+        if (!res.ok)
+          throw new Error(`${label} ${res.status} ${res.statusText}`);
+        return res.json();
+      } catch (e) {
+        console.error(`[data] ${label} failed:`, e);
+        return null;
+      }
+    };
+
+    (async () => {
+      try {
+        const [locs, acts, map] = await Promise.all([
           fetchJSON("/data/locations.json", "locations"),
           fetchJSON("/data/activities.json", "activities"),
-          fetchJSON("/data/ferries.json", "ferries"),
           fetchJSON("/data/location_adventures.json", "location_adventures"),
         ]);
 
-        const safeLocs = Array.isArray(locs) ? locs : [];
+        const safeLocs = Array.isArray(locs) ? locs.map(normalizeLocation) : [];
         const safeActs = Array.isArray(acts) ? acts : [];
-        const safeFers = Array.isArray(fers) ? fers : [];
         const safeMap = Array.isArray(map) ? map : [];
 
-        setLocations(safeLocs);
+        setRawLocations(safeLocs);
         setActivities(safeActs);
-        setFerries(safeFers);
         setLocAdventures(safeMap);
-
         setDataStatus("ready");
       } catch (e) {
         console.error("Data load fatal error:", e);
@@ -288,131 +316,116 @@ export default function App() {
     })();
   }, []);
 
+  // Derived data
+  const locations = useMemo(
+    () =>
+      rawLocations.map((l) => ({
+        ...l,
+        moods: Array.isArray(l.moods) && l.moods.length ? l.moods : inferMoods(l),
+      })),
+    [rawLocations]
+  );
+
   const islandsList = useMemo(() => {
     const s = new Set(locations.map((l) => l.island).filter(Boolean));
     return s.size ? Array.from(s) : DEFAULT_ISLANDS;
   }, [locations]);
 
-  // —— App state
-  const [step, setStep] = useState(0);
-  const [startDate, setStartDate] = useState(""); // optional
-  const [adults, setAdults] = useState(2);
-  const [infants, setInfants] = useState(0);
-  const pax = adults + infants;
-  const [startPB, setStartPB] = useState(true);
-
-  // Step 1: selection
-  const [selectedIds, setSelectedIds] = useState([]);
-
-  // hide airport from selection (arrival is default)
   const selectableLocations = useMemo(
-    () => locations.filter((l) => !/airport/i.test(l.name || "")),
+    () =>
+      locations.filter(
+        (l) => !/airport/i.test(l.name || "") // hide airport from selection
+      ),
     [locations]
   );
+
+  const filteredLocations = useMemo(
+    () =>
+      selectableLocations.filter(
+        (l) =>
+          (islandFilter === "All" || l.island === islandFilter) &&
+          (moodFilter === "All" ||
+            (Array.isArray(l.moods) && l.moods.includes(moodFilter)))
+      ),
+    [selectableLocations, islandFilter, moodFilter]
+  );
+
   const selectedLocs = useMemo(
     () => locations.filter((l) => selectedIds.includes(l.id)),
     [locations, selectedIds]
   );
 
-  // Mood + Island filters
-  const [islandFilter, setIslandFilter] = useState("All");
-  const [moodFilter, setMoodFilter] = useState("All");
-
-  // Attach moods (either from data or inferred)
-  const selectableWithMoods = useMemo(
-    () =>
-      selectableLocations.map((l) => ({
-        ...l,
-        moods:
-          Array.isArray(l.moods) && l.moods.length ? l.moods : inferMoods(l),
-      })),
-    [selectableLocations]
-  );
-
-  // Filter what we display by island + mood
-  const filteredLocations = useMemo(
-    () =>
-      selectableWithMoods.filter(
-        (l) =>
-          (islandFilter === "All" || l.island === islandFilter) &&
-          (moodFilter === "All" || (l.moods || []).includes(moodFilter))
-      ),
-    [selectableWithMoods, islandFilter, moodFilter]
-  );
-
-  // scooters per island
-  const [scooterIslands, setScooterIslands] = useState(new Set());
-
-  // Step 3: itinerary
-  const [days, setDays] = useState([]);
+  // Itinerary auto-generate whenever locations / startPB change
   useEffect(() => {
     setDays(generateItineraryDays(selectedLocs, startPB));
   }, [selectedLocs, startPB]);
 
-  // Day helpers
+  // Day tools
   const addEmptyDayAfter = (index) => {
-    const copy = [...days];
-    copy.splice(index + 1, 0, {
-      island: copy[index]?.island || "Port Blair (South Andaman)",
-      items: [],
-      transport: "Point-to-Point",
+    setDays((prev) => {
+      const copy = [...prev];
+      const baseIsland =
+        copy[index]?.island || "Port Blair (South Andaman)";
+      copy.splice(index + 1, 0, {
+        island: baseIsland,
+        items: [],
+        transport: "Point-to-Point",
+      });
+      return copy;
     });
-    setDays(copy);
-  };
-  const deleteDay = (index) => {
-    const copy = [...days];
-    copy.splice(index, 1);
-    setDays(copy);
-  };
-  const moveItem = (fromDay, itemIdx, dir = 1) => {
-    const toDay = fromDay + dir;
-    if (toDay < 0 || toDay >= days.length) return;
-    const copy = [...days];
-    const [item] = copy[fromDay].items.splice(itemIdx, 1);
-    copy[toDay].items.push(item);
-    setDays(copy);
-  };
-  const setTransportForDay = (i, mode) => {
-    const copy = [...days];
-    copy[i] = { ...copy[i], transport: mode };
-    setDays(copy);
   };
 
-  // Step 4: hotels
-  const [chosenHotels, setChosenHotels] = useState({});
+  const deleteDay = (index) => {
+    setDays((prev) => {
+      if (prev.length <= 1) return prev;
+      const copy = [...prev];
+      copy.splice(index, 1);
+      return copy;
+    });
+  };
+
+  const moveItem = (fromDay, itemIdx, dir = 1) => {
+    setDays((prev) => {
+      const toDay = fromDay + dir;
+      if (toDay < 0 || toDay >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy[fromDay].items.splice(itemIdx, 1);
+      copy[toDay].items.push(item);
+      return copy;
+    });
+  };
+
+  const setTransportForDay = (i, mode) => {
+    setDays((prev) => {
+      const copy = [...prev];
+      copy[i] = { ...copy[i], transport: mode };
+      return copy;
+    });
+  };
+
+  // Hotels logic
   const nightsByIsland = useMemo(() => {
     const map = {};
     days.forEach((day) => {
-      if (
-        !day.items.some((i) => i.type === "ferry") &&
-        !day.items.some((i) => i.type === "departure")
-      ) {
-        map[day.island] = (map[day.island] || 0) + 1;
-      }
+      const hasFerry = day.items.some((i) => i.type === "ferry");
+      const hasDeparture = day.items.some((i) => i.type === "departure");
+      if (hasFerry || hasDeparture) return;
+      map[day.island] = (map[day.island] || 0) + 1;
     });
     return map;
   }, [days]);
+
   const MOCK_HOTELS = useMemo(
     () => ({
       "Port Blair (South Andaman)": [
         { id: "pb_h1", name: "PB Value Hotel", tier: "Value", sell_price: 3299 },
         { id: "pb_h2", name: "PB Mid Hotel", tier: "Mid", sell_price: 5499 },
-        {
-          id: "pb_h3",
-          name: "PB Premium Hotel",
-          tier: "Premium",
-          sell_price: 8899,
-        },
+        { id: "pb_h3", name: "PB Premium Hotel", tier: "Premium", sell_price: 8899 },
       ],
       "Havelock (Swaraj Dweep)": [
         { id: "hl_h1", name: "HL Value Hotel", tier: "Value", sell_price: 4499 },
         { id: "hl_h2", name: "HL Mid Hotel", tier: "Mid", sell_price: 6999 },
-        {
-          id: "hl_h3",
-          name: "HL Premium Hotel",
-          tier: "Premium",
-          sell_price: 10999,
-        },
+        { id: "hl_h3", name: "HL Premium Hotel", tier: "Premium", sell_price: 10999 },
       ],
       "Neil (Shaheed Dweep)": [
         { id: "nl_h1", name: "NL Value Hotel", tier: "Value", sell_price: 3399 },
@@ -436,40 +449,34 @@ export default function App() {
     }),
     []
   );
-  const chooseHotel = (island, hotelId) =>
-    setChosenHotels((p) => ({ ...p, [island]: hotelId }));
 
-  // Step 5: essentials (transport + ferries)
-  const [essentials, setEssentials] = useState({
-    ferryClass: "Deluxe",
-    cabModelId: CAB_MODELS[1].id, // default SUV
-  });
+  const chooseHotel = (island, hotelId) => {
+    setChosenHotels((prev) => ({ ...prev, [island]: hotelId }));
+  };
 
-  // Step 2: add-ons (suggested then fallback)
+  // Adventure suggestions
   const suggestedActivities = useMemo(() => {
-    const sel = new Set(selectedIds);
-    // if mapping exists for a selected location → show mapped first (unique)
+    const selectedSet = new Set(selectedIds);
+
+    // mapped by locationId
     const mappedIds = new Set();
     locAdventures.forEach((m) => {
-      if (sel.has(m.locationId))
+      if (selectedSet.has(m.locationId)) {
         (m.adventureIds || []).forEach((id) => mappedIds.add(id));
+      }
     });
-    const mapped = activities.filter((a) => mappedIds.has(a.id));
 
+    const mapped = activities.filter((a) => mappedIds.has(a.id));
     if (mapped.length) return mapped;
 
-    // otherwise fallback by island overlap
     const selectedIslands = new Set(selectedLocs.map((l) => l.island));
     const islandMatch = activities.filter((a) =>
       (a.islands || []).some((i) => selectedIslands.has(i))
     );
     return islandMatch.length ? islandMatch : activities;
   }, [activities, selectedIds, selectedLocs, locAdventures]);
-  const [addonIds, setAddonIds] = useState([]);
 
-  /** =========================
-   *  Dynamic costs
-   *  ========================= */
+  // Costs
   const hotelsTotal = useMemo(() => {
     let sum = 0;
     Object.entries(nightsByIsland).forEach(([island, nights]) => {
@@ -498,9 +505,10 @@ export default function App() {
       ),
     [days]
   );
+
   const ferryTotal = useMemo(() => {
     const mult = FERRY_CLASS_MULT[essentials.ferryClass] ?? 1;
-    return ferryLegCount * FERRY_BASE_ECON * mult * Math.max(1, adults); // infants assumed free
+    return ferryLegCount * FERRY_BASE_ECON * mult * Math.max(1, adults);
   }, [ferryLegCount, essentials.ferryClass, adults]);
 
   const cabDayRate = useMemo(() => {
@@ -511,25 +519,37 @@ export default function App() {
   const logisticsTotal = useMemo(() => {
     let sum = 0;
     days.forEach((day) => {
-      if (
-        day.items.some((i) => i.type === "ferry") ||
-        day.items.some((i) => i.type === "departure")
-      )
-        return; // ferry handled separately, last day no ground
+      const hasFerry = day.items.some((i) => i.type === "ferry");
+      const hasDeparture = day.items.some((i) => i.type === "departure");
+      if (hasFerry || hasDeparture) return;
+
       const stops = day.items.filter((i) => i.type === "location").length;
+
       if (scooterIslands.has(day.island)) {
         sum += SCOOTER_DAY_RATE;
         return;
       }
+
       if (day.transport === "Day Cab") sum += cabDayRate;
       else if (day.transport === "Scooter") sum += SCOOTER_DAY_RATE;
-      else sum += Math.max(1, stops - 1) * P2P_RATE_PER_HOP; // P2P
+      else sum += Math.max(1, stops - 1) * P2P_RATE_PER_HOP;
     });
     return sum;
   }, [days, scooterIslands, cabDayRate]);
 
   const grandTotal = hotelsTotal + addonsTotal + logisticsTotal + ferryTotal;
+  const pax = adults + infants;
 
+  const toggleScooter = (island) => {
+    setScooterIslands((prev) => {
+      const next = new Set(prev);
+      if (next.has(island)) next.delete(island);
+      else next.add(island);
+      return next;
+    });
+  };
+
+  // Early UI for loading / error (no hooks below this point!)
   if (dataStatus === "loading") {
     return (
       <div style={{ padding: 24, fontFamily: "system-ui, Arial" }}>
@@ -546,22 +566,16 @@ export default function App() {
           color: "#b91c1c",
         }}
       >
-        Could not load data. Please check that{" "}
-        <code>/public/data/*.json</code> exists in the repo.
+        Could not load data. Please check{" "}
+        <code>/public/data/*.json</code> in the repo.
       </div>
     );
   }
 
-  const toggleScooter = (island) => {
-    const next = new Set(scooterIslands);
-    next.has(island) ? next.delete(island) : next.add(island);
-    setScooterIslands(next);
-  };
-
-  // location detail modal state
-  const [openLoc, setOpenLoc] = useState(null);
   const openModalFor = (loc) => setOpenLoc(loc);
   const closeModal = () => setOpenLoc(null);
+
+  /* ---------- UI ---------- */
 
   return (
     <div
@@ -632,7 +646,7 @@ export default function App() {
       {/* Body */}
       <main className="app-main">
         <section>
-          {/* STEP 0 */}
+          {/* STEP 0: basics */}
           {step === 0 && (
             <Card title="Trip Basics">
               <div
@@ -642,8 +656,8 @@ export default function App() {
                   marginBottom: 8,
                 }}
               >
-                Start date is optional. If you skip it, your itinerary will show
-                Day 1, Day 2… without calendar dates.
+                Start date is optional. If you skip it, the itinerary will show
+                Day 1, Day 2… without fixed calendar dates.
               </div>
               <Row>
                 <Field label="Start date (optional)">
@@ -679,8 +693,9 @@ export default function App() {
                   <input
                     type="checkbox"
                     checked={startPB}
-                    onChange={() => setStartPB(!startPB)}
-                  />{" "}
+                    onChange={() => setStartPB((v) => !v)}
+                    style={{ marginRight: 6 }}
+                  />
                   Start from Port Blair if present
                 </label>
               </Row>
@@ -688,7 +703,7 @@ export default function App() {
             </Card>
           )}
 
-          {/* STEP 1 */}
+          {/* STEP 1: locations */}
           {step === 1 && (
             <Card title="Select Locations">
               <Row>
@@ -713,9 +728,10 @@ export default function App() {
                     <option>Relaxed</option>
                     <option>Balanced</option>
                     <option>Active</option>
-                    <option>Offbeat</option>
                     <option>Family</option>
                     <option>Adventure</option>
+                    <option>Romantic</option>
+                    <option>Offbeat</option>
                     <option>Photography</option>
                   </select>
                 </Field>
@@ -734,7 +750,8 @@ export default function App() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(240px,1fr))",
                   gap: 12,
                 }}
               >
@@ -755,7 +772,6 @@ export default function App() {
                         onClick={() => openModalFor(l)}
                         style={{ cursor: "pointer" }}
                       >
-                        {/* hero image */}
                         {l.image ? (
                           <div
                             style={{
@@ -769,9 +785,10 @@ export default function App() {
                           <div
                             style={{
                               height: 120,
-                              background: "#e2e8f0",
-                              borderRadius: 8,
                               marginBottom: 8,
+                              borderRadius: 8,
+                              background:
+                                "linear-gradient(135deg,#bae6fd,#f9fafb)",
                             }}
                           />
                         )}
@@ -783,9 +800,8 @@ export default function App() {
                             marginTop: 4,
                           }}
                         >
-                          {l.island} • {(l.durationHrs ?? 2)}h
+                          {l.island} • {l.durationHrs}h
                         </div>
-                        {/* Mood badges */}
                         <div
                           style={{
                             display: "flex",
@@ -794,27 +810,24 @@ export default function App() {
                             marginTop: 6,
                           }}
                         >
-                          {(l.moods || [])
-                            .slice(0, 3)
-                            .map((m) => (
-                              <span
-                                key={m}
-                                style={{
-                                  fontSize: 10,
-                                  padding: "2px 6px",
-                                  borderRadius: 999,
-                                  border: "1px solid #e5e7eb",
-                                  color: "#334155",
-                                  background: "#f8fafc",
-                                }}
-                              >
-                                {m}
-                              </span>
-                            ))}
+                          {(l.moods || []).slice(0, 3).map((m) => (
+                            <span
+                              key={m}
+                              style={{
+                                fontSize: 10,
+                                padding: "2px 6px",
+                                borderRadius: 999,
+                                border: "1px solid #e5e7eb",
+                                color: "#334155",
+                                background: "#f8fafc",
+                              }}
+                            >
+                              {m}
+                            </span>
+                          ))}
                         </div>
                       </div>
 
-                      {/* Select button */}
                       <button
                         onClick={() =>
                           setSelectedIds((prev) =>
@@ -845,7 +858,7 @@ export default function App() {
             </Card>
           )}
 
-          {/* STEP 2 */}
+          {/* STEP 2: adventures & add-ons */}
           {step === 2 && (
             <Card title="Adventures & Add-ons">
               <div
@@ -855,87 +868,99 @@ export default function App() {
                   marginBottom: 8,
                 }}
               >
-                Suggested first, based on your selected locations. You can add
-                now or later.
+                First we show adventures suggested from your selected
+                locations. Below that, you’ll see all available adventures.
               </div>
+
+              {/* Suggested first */}
+              <h4 style={{ fontSize: 13, margin: "4px 0 8px" }}>
+                Suggested for your trip
+              </h4>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(240px,1fr))",
                   gap: 12,
                 }}
               >
                 {suggestedActivities.map((a) => {
                   const on = addonIds.includes(a.id);
                   return (
-                    <div
+                    <AdventureCard
                       key={a.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        background: "white",
-                        borderRadius: 12,
-                        padding: 12,
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: 80,
-                          background: "#e2e8f0",
-                          borderRadius: 8,
-                          marginBottom: 8,
-                        }}
-                      />
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>
-                        {a.name}
-                      </div>
-                      <div
-                        style={{ fontSize: 12, color: "#475569" }}
-                      >
-                        {formatINR(a.basePriceINR ?? a.price ?? 0)}
-                      </div>
-                      <button
-                        onClick={() =>
-                          setAddonIds((prev) =>
-                            on ? prev.filter((x) => x !== a.id) : [...prev, a.id]
-                          )
-                        }
-                        style={{
-                          marginTop: 8,
-                          width: "100%",
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #0ea5e9",
-                          background: on ? "#0ea5e9" : "white",
-                          color: on ? "white" : "#0ea5e9",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {on ? "Added" : "Add"}
-                      </button>
-                    </div>
+                      adventure={a}
+                      active={on}
+                      onToggle={() =>
+                        setAddonIds((prev) =>
+                          on
+                            ? prev.filter((x) => x !== a.id)
+                            : [...prev, a.id]
+                        )
+                      }
+                    />
                   );
                 })}
               </div>
+
+              {/* All adventures */}
+              <h4
+                style={{
+                  fontSize: 13,
+                  margin: "16px 0 8px",
+                  borderTop: "1px dashed #e5e7eb",
+                  paddingTop: 8,
+                }}
+              >
+                All adventures
+              </h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(240px,1fr))",
+                  gap: 12,
+                }}
+              >
+                {activities.map((a) => {
+                  const on = addonIds.includes(a.id);
+                  return (
+                    <AdventureCard
+                      key={`all-${a.id}`}
+                      adventure={a}
+                      active={on}
+                      onToggle={() =>
+                        setAddonIds((prev) =>
+                          on
+                            ? prev.filter((x) => x !== a.id)
+                            : [...prev, a.id]
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+
               <FooterNav onPrev={() => setStep(1)} onNext={() => setStep(3)} />
             </Card>
           )}
 
-          {/* STEP 3 */}
+          {/* STEP 3: itinerary */}
           {step === 3 && (
             <Card title="Itinerary (Editable)">
               {!days.length && (
                 <p style={{ fontSize: 14 }}>
-                  Select a few locations first.
+                  Select a few locations first; the itinerary will appear here.
                 </p>
               )}
+
               <div style={{ display: "grid", gap: 12 }}>
                 {days.map((day, i) => {
                   const calendarDate = startDate
                     ? addDays(startDate, i)
                     : null;
-                  const dayLabel = calendarDate
-                    ? `${calendarDate}`
-                    : `No date set`;
+                  const dateLabel = calendarDate || "No date set";
+
                   return (
                     <div
                       key={i}
@@ -966,56 +991,20 @@ export default function App() {
                             Day {i + 1} — {day.island}
                           </b>
                           {day.items.some((it) => it.type === "ferry") && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                padding: "2px 6px",
-                                borderRadius: 999,
-                                background: "#ecfeff",
-                                color: "#0369a1",
-                                border: "1px solid #bae6fd",
-                              }}
-                            >
-                              Ferry
-                            </span>
+                            <Chip tone="blue">Ferry</Chip>
                           )}
                           {day.items.some((it) => it.type === "arrival") && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                padding: "2px 6px",
-                                borderRadius: 999,
-                                background: "#f0fdf4",
-                                color: "#166534",
-                                border: "1px solid #bbf7d0",
-                              }}
-                            >
-                              Arrival
-                            </span>
+                            <Chip tone="green">Arrival</Chip>
                           )}
                           {day.items.some(
                             (it) => it.type === "departure"
-                          ) && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                padding: "2px 6px",
-                                borderRadius: 999,
-                                background: "#fef2f2",
-                                color: "#991b1b",
-                                border: "1px solid #fecaca",
-                              }}
-                            >
-                              Departure
-                            </span>
-                          )}
+                          ) && <Chip tone="red">Departure</Chip>}
                         </div>
-                        <span
-                          style={{ fontSize: 12, color: "#334155" }}
-                        >
-                          {dayLabel}
+                        <span style={{ fontSize: 12, color: "#334155" }}>
+                          {dateLabel}
                         </span>
                       </div>
+
                       <ul
                         style={{
                           marginTop: 8,
@@ -1034,15 +1023,9 @@ export default function App() {
                             }}
                           >
                             <span>
-                              {it.type === "ferry"
-                                ? it.name
-                                : it.type === "arrival"
-                                ? it.name
-                                : it.type === "transfer"
-                                ? it.name
-                                : it.type === "departure"
-                                ? it.name
-                                : `${it.name} (${it.durationHrs}h)`}
+                              {it.type === "location"
+                                ? `${it.name} (${it.durationHrs}h)`
+                                : it.name}
                             </span>
                             <span
                               style={{
@@ -1068,10 +1051,9 @@ export default function App() {
                           </li>
                         ))}
                       </ul>
+
                       {!day.items.some((it) => it.type === "ferry") &&
-                        !day.items.some(
-                          (it) => it.type === "departure"
-                        ) && (
+                        !day.items.some((it) => it.type === "departure") && (
                           <div
                             style={{
                               display: "flex",
@@ -1119,6 +1101,7 @@ export default function App() {
                   );
                 })}
               </div>
+
               <div style={{ marginTop: 10 }}>
                 <button
                   onClick={() => addEmptyDayAfter(days.length - 1)}
@@ -1127,102 +1110,90 @@ export default function App() {
                   + Add another day
                 </button>
               </div>
+
               <FooterNav onPrev={() => setStep(2)} onNext={() => setStep(4)} />
             </Card>
           )}
 
-          {/* STEP 4 */}
+          {/* STEP 4: hotels */}
           {step === 4 && (
             <Card title="Hotels by Island">
-              {Object.entries(nightsByIsland).map(
-                ([island, nights]) => (
+              {Object.entries(nightsByIsland).map(([island, nights]) => (
+                <div key={island} style={{ marginBottom: 16 }}>
+                  <b>
+                    {island} — {nights} night(s)
+                  </b>
                   <div
-                    key={island}
-                    style={{ marginBottom: 16 }}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(220px,1fr))",
+                      gap: 10,
+                      marginTop: 8,
+                    }}
                   >
-                    <b>
-                      {island} — {nights} night(s)
-                    </b>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fill, minmax(220px,1fr))",
-                        gap: 10,
-                        marginTop: 8,
-                      }}
-                    >
-                      {(MOCK_HOTELS[island] || []).map((h) => {
-                        const picked =
-                          chosenHotels[island] === h.id;
-                        return (
+                    {(MOCK_HOTELS[island] || []).map((h) => {
+                      const picked = chosenHotels[island] === h.id;
+                      return (
+                        <div
+                          key={h.id}
+                          style={{
+                            border: "1px solid #e5e7eb",
+                            background: "white",
+                            borderRadius: 12,
+                            padding: 12,
+                          }}
+                        >
                           <div
-                            key={h.id}
                             style={{
-                              border: "1px solid #e5e7eb",
-                              background: "white",
-                              borderRadius: 12,
-                              padding: 12,
+                              height: 80,
+                              background: "#e2e8f0",
+                              borderRadius: 8,
+                              marginBottom: 8,
+                            }}
+                          />
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
                             }}
                           >
-                            <div
-                              style={{
-                                height: 80,
-                                background: "#e2e8f0",
-                                borderRadius: 8,
-                                marginBottom: 8,
-                              }}
-                            />
-                            <div
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {h.name}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: "#475569",
-                              }}
-                            >
-                              {h.tier} • From{" "}
-                              {formatINR(h.sell_price)}/night
-                            </div>
-                            <button
-                              onClick={() =>
-                                chooseHotel(island, h.id)
-                              }
-                              style={{
-                                marginTop: 8,
-                                width: "100%",
-                                padding: "8px 10px",
-                                borderRadius: 8,
-                                border: "1px solid #16a34a",
-                                background: picked
-                                  ? "#16a34a"
-                                  : "white",
-                                color: picked
-                                  ? "white"
-                                  : "#16a34a",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {picked ? "Selected" : "Select"}
-                            </button>
+                            {h.name}
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#475569",
+                            }}
+                          >
+                            {h.tier} • From {formatINR(h.sell_price)}/night
+                          </div>
+                          <button
+                            onClick={() => chooseHotel(island, h.id)}
+                            style={{
+                              marginTop: 8,
+                              width: "100%",
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                              border: "1px solid #16a34a",
+                              background: picked ? "#16a34a" : "white",
+                              color: picked ? "white" : "#16a34a",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {picked ? "Selected" : "Select"}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                )
-              )}
+                </div>
+              ))}
               <FooterNav onPrev={() => setStep(3)} onNext={() => setStep(5)} />
             </Card>
           )}
 
-          {/* STEP 5 */}
+          {/* STEP 5: transport */}
           {step === 5 && (
             <Card title="Transport & Ferries">
               <div style={{ display: "grid", gap: 14 }}>
@@ -1240,10 +1211,10 @@ export default function App() {
                       <select
                         value={essentials.ferryClass}
                         onChange={(e) =>
-                          setEssentials({
-                            ...essentials,
+                          setEssentials((prev) => ({
+                            ...prev,
                             ferryClass: e.target.value,
-                          })
+                          }))
                         }
                       >
                         <option>Economy</option>
@@ -1285,10 +1256,10 @@ export default function App() {
                       <select
                         value={essentials.cabModelId}
                         onChange={(e) =>
-                          setEssentials({
-                            ...essentials,
+                          setEssentials((prev) => ({
+                            ...prev,
                             cabModelId: e.target.value,
-                          })
+                          }))
                         }
                       >
                         {CAB_MODELS.map((c) => (
@@ -1306,8 +1277,8 @@ export default function App() {
                       marginBottom: 6,
                     }}
                   >
-                    Scooter per island (overrides transport to
-                    scooter on those islands):
+                    Scooter per island (separate from cab, overrides to scooter
+                    on those islands):
                   </div>
                   <div
                     style={{
@@ -1336,8 +1307,7 @@ export default function App() {
                             onChange={() => toggleScooter(isl)}
                             style={{ marginRight: 6 }}
                           />
-                          {isl} —{" "}
-                          {formatINR(SCOOTER_DAY_RATE)}/day
+                          {isl} — {formatINR(SCOOTER_DAY_RATE)}/day
                         </label>
                       ))}
                   </div>
@@ -1347,7 +1317,7 @@ export default function App() {
                 onPrev={() => setStep(4)}
                 onNext={() =>
                   alert(
-                    "This would submit a lead for the full itinerary."
+                    "This would submit a lead / enquiry for the full itinerary."
                   )
                 }
                 nextLabel="Request to Book"
@@ -1368,7 +1338,6 @@ export default function App() {
                 boxShadow: "0 8px 24px rgba(2,132,199,0.08)",
               }}
             >
-              {/* header strip with gradient */}
               <div
                 style={{
                   padding: "12px 14px",
@@ -1408,7 +1377,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* body */}
               <div style={{ padding: 16 }}>
                 <div
                   style={{
@@ -1443,13 +1411,22 @@ export default function App() {
                     fontSize: 14,
                   }}
                 >
-                  <RowSplit label="Hotels" value={formatINR(hotelsTotal)} />
-                  <RowSplit label="Ferries" value={formatINR(ferryTotal)} />
+                  <RowSplit
+                    label="Hotels"
+                    value={formatINR(hotelsTotal)}
+                  />
+                  <RowSplit
+                    label="Ferries"
+                    value={formatINR(ferryTotal)}
+                  />
                   <RowSplit
                     label="Ground transport"
                     value={formatINR(logisticsTotal)}
                   />
-                  <RowSplit label="Add-ons" value={formatINR(addonsTotal)} />
+                  <RowSplit
+                    label="Adventures & add-ons"
+                    value={formatINR(addonsTotal)}
+                  />
                   <div
                     style={{
                       borderTop: "2px solid #0ea5e9",
@@ -1467,7 +1444,7 @@ export default function App() {
                 <button
                   onClick={() =>
                     alert(
-                      "This would submit a single Request-to-Book for the whole itinerary."
+                      "This would submit a single Request-to-Book for the full trip."
                     )
                   }
                   style={{
@@ -1489,13 +1466,13 @@ export default function App() {
         </aside>
       </main>
 
-      {/* Location Detail Modal */}
+      {/* Location detail modal */}
       {openLoc && (
         <div
+          id="loc-ov"
           onClick={(e) => {
             if (e.target.id === "loc-ov") closeModal();
           }}
-          id="loc-ov"
           style={{
             position: "fixed",
             inset: 0,
@@ -1526,7 +1503,13 @@ export default function App() {
                   }}
                 />
               ) : (
-                <div style={{ height: 180, background: "#e2e8f0" }} />
+                <div
+                  style={{
+                    height: 180,
+                    background:
+                      "linear-gradient(135deg,#bae6fd,#f9fafb)",
+                  }}
+                />
               )}
               <button
                 onClick={closeModal}
@@ -1568,7 +1551,7 @@ export default function App() {
                 }}
               >
                 {openLoc.brief ||
-                  "No description provided yet. This is a popular stop and fits well with a relaxed pace."}
+                  "No description yet. This fits well into a relaxed Andaman itinerary."}
               </div>
               <div
                 style={{
@@ -1607,7 +1590,7 @@ export default function App() {
                   {(openLoc.durationHrs ?? 2)}h typical
                 </span>
               </div>
-              {/* Suggested adventures preview */}
+
               <div style={{ marginTop: 10 }}>
                 <div
                   style={{
@@ -1616,7 +1599,7 @@ export default function App() {
                     marginBottom: 6,
                   }}
                 >
-                  Suggested adventures
+                  Suggested adventures nearby
                 </div>
                 <div
                   style={{
@@ -1633,13 +1616,14 @@ export default function App() {
                     const top = activities
                       .filter((a) => ids.includes(a.id))
                       .slice(0, 3);
-                    const show = top.length
-                      ? top
-                      : activities
-                          .filter((a) =>
-                            (a.islands || []).includes(openLoc.island)
-                          )
-                          .slice(0, 3);
+                    const show =
+                      top.length > 0
+                        ? top
+                        : activities
+                            .filter((a) =>
+                              (a.islands || []).includes(openLoc.island)
+                            )
+                            .slice(0, 3);
                     return show.map((a) => (
                       <span
                         key={a.id}
@@ -1662,14 +1646,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Mobile Summary Bar */}
+      {/* Mobile summary bar */}
       <MobileSummaryBar
         total={grandTotal}
         lineItems={[
           { label: "Hotels", amount: hotelsTotal },
           { label: "Ferries", amount: ferryTotal },
           { label: "Ground transport", amount: logisticsTotal },
-          { label: "Add-ons", amount: addonsTotal },
+          { label: "Adventures", amount: addonsTotal },
         ]}
         badges={[
           { label: "days", value: String(days.length) },
@@ -1683,9 +1667,10 @@ export default function App() {
   );
 }
 
-/** =========================
- *  Tiny UI primitives
- *  ========================= */
+/* -----------------------------------
+   Tiny UI helpers
+------------------------------------ */
+
 const miniBtn = {
   border: "1px solid #e5e7eb",
   background: "white",
@@ -1693,6 +1678,7 @@ const miniBtn = {
   padding: "3px 8px",
   fontSize: 12,
 };
+
 const pillBtn = {
   border: "1px solid #0ea5e9",
   background: "white",
@@ -1701,6 +1687,7 @@ const pillBtn = {
   padding: "6px 10px",
   fontWeight: 700,
 };
+
 const dangerBtn = {
   border: "1px solid #ef4444",
   background: "white",
@@ -1761,6 +1748,7 @@ function Card({ title, children }) {
     </div>
   );
 }
+
 function Row({ children }) {
   return (
     <div
@@ -1775,6 +1763,7 @@ function Row({ children }) {
     </div>
   );
 }
+
 function Field({ label, children }) {
   return (
     <label
@@ -1790,6 +1779,7 @@ function Field({ label, children }) {
     </label>
   );
 }
+
 function FooterNav({ onPrev, onNext, nextLabel = "Next" }) {
   return (
     <div
@@ -1827,6 +1817,7 @@ function FooterNav({ onPrev, onNext, nextLabel = "Next" }) {
     </div>
   );
 }
+
 function Stepper({ step, setStep }) {
   const labels = [
     "Trip Basics",
@@ -1864,6 +1855,84 @@ function Stepper({ step, setStep }) {
           {i + 1}. {label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function Chip({ children, tone }) {
+  const tones = {
+    blue: {
+      bg: "#ecfeff",
+      border: "#bae6fd",
+      color: "#0369a1",
+    },
+    green: {
+      bg: "#f0fdf4",
+      border: "#bbf7d0",
+      color: "#166534",
+    },
+    red: {
+      bg: "#fef2f2",
+      border: "#fecaca",
+      color: "#991b1b",
+    },
+  };
+  const t = tones[tone] || tones.blue;
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        padding: "2px 6px",
+        borderRadius: 999,
+        background: t.bg,
+        color: t.color,
+        border: `1px solid ${t.border}`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function AdventureCard({ adventure, active, onToggle }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e5e7eb",
+        background: "white",
+        borderRadius: 12,
+        padding: 12,
+      }}
+    >
+      <div
+        style={{
+          height: 80,
+          background: "#e2e8f0",
+          borderRadius: 8,
+          marginBottom: 8,
+        }}
+      />
+      <div style={{ fontSize: 13, fontWeight: 600 }}>
+        {adventure.name}
+      </div>
+      <div style={{ fontSize: 12, color: "#475569" }}>
+        {formatINR(adventure.basePriceINR ?? adventure.price ?? 0)}
+      </div>
+      <button
+        onClick={onToggle}
+        style={{
+          marginTop: 8,
+          width: "100%",
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #0ea5e9",
+          background: active ? "#0ea5e9" : "white",
+          color: active ? "white" : "#0ea5e9",
+          fontWeight: 600,
+        }}
+      >
+        {active ? "Added" : "Add"}
+      </button>
     </div>
   );
 }
