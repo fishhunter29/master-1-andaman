@@ -1,148 +1,6 @@
 import React, { useState, useMemo } from "react";
 
-// Basic lookup for Nearby section labels
-const LOCATION_META = {
-  PB001: { name: "Cellular Jail", island: "Port Blair" },
-  PB002: { name: "Corbyn’s Cove Beach", island: "Port Blair" },
-  PB003: { name: "Ross Island (Netaji Subhash Chandra Bose Island)", island: "Port Blair" },
-  PB004: { name: "North Bay Island (Coral Island)", island: "Port Blair" },
-  PB005: { name: "Chidiya Tapu (Sunset Point)", island: "Port Blair" },
-  PB006: { name: "Mount Harriet National Park", island: "Port Blair" },
-  PB007: { name: "Anthropological Museum", island: "Port Blair" },
-  PB008: { name: "Samudrika Naval Marine Museum", island: "Port Blair" },
-  PB009: { name: "Aberdeen Jetty & Marina Park", island: "Port Blair" },
-  PB010: { name: "Jogger’s Park Viewpoint", island: "Port Blair" },
-  HV001: { name: "Radhanagar Beach (Beach No. 7)", island: "Havelock Island" },
-  HV002: { name: "Kalapathar Beach", island: "Havelock Island" },
-  HV003: { name: "Elephant Beach (via Boat)", island: "Havelock Island" },
-  HV004: { name: "Govind Nagar Beach (Havelock Main Beach)", island: "Havelock Island" },
-  HV005: { name: "Vijay Nagar Beach (Beach No. 5)", island: "Havelock Island" },
-  HV006: { name: "Dive Sites off Havelock (Generic Entry)", island: "Havelock Island" },
-  NL001: { name: "Bharatpur Beach", island: "Neil Island" },
-  NL002: { name: "Laxmanpur Beach I & II", island: "Neil Island" },
-  NL003: { name: "Sitapur Beach (Sunrise Point)", island: "Neil Island" },
-  BR001: { name: "Limestone Caves (Baratang)", island: "Baratang Island" },
-  BR002: { name: "Mud Volcano (Baratang)", island: "Baratang Island" },
-  RG001: { name: "Amkunj Beach (Eco Park)", island: "Rangat & Middle Andaman" },
-  RG002: { name: "Dhanninalah Mangrove Walkway", island: "Rangat & Middle Andaman" },
-  DG001: { name: "Ross & Smith Twin Islands", island: "Diglipur & North Andaman" },
-  DG002: { name: "Saddle Peak National Park (Viewpoint Trek)", island: "Diglipur & North Andaman" },
-  DG003: { name: "Kalipur Beach & Turtle Nesting Zone", island: "Diglipur & North Andaman" },
-  LA001: { name: "Butler Bay Beach", island: "Little Andaman" },
-  LA002: { name: "White Surf & Whisper Wave Waterfalls (Generic Entry)", island: "Little Andaman" },
-  LI001: { name: "Long Island Village & Lalaji Bay (Generic Entry)", island: "Long Island" }
-};
-
-// Demo adventure mapping for UI only
-const ADVENTURES_BY_LOCATION = {
-  PB001: [
-    { id: "ADV_LS_SHOW", name: "Light & Sound Show", type: "Experience" }
-  ],
-  PB004: [
-    { id: "ADV_SNORKEL_NB", name: "Snorkelling at North Bay", type: "Water" },
-    { id: "ADV_GB_NB", name: "Glass-bottom Boat Ride", type: "Water" },
-    { id: "ADV_SEAWALK_NB", name: "Sea Walk (Helmet)", type: "Water" }
-  ],
-  HV003: [
-    { id: "ADV_SNORKEL_EB", name: "Snorkelling at Elephant Beach", type: "Water" },
-    { id: "ADV_SEAWALK_EB", name: "Sea Walk at Elephant Beach", type: "Water" },
-    { id: "ADV_JETSKI_EB", name: "Jet Ski Ride", type: "Adrenaline" }
-  ],
-  HV006: [
-    { id: "ADV_DIVE_FUN", name: "Fun Dives (Certified Divers)", type: "Scuba" },
-    { id: "ADV_DSC", name: "Discover Scuba Diving (Beginners)", type: "Scuba" }
-  ],
-  NL001: [
-    { id: "ADV_GB_BH", name: "Glass-bottom Boat at Bharatpur", type: "Water" },
-    { id: "ADV_SNORKEL_BH", name: "Snorkelling at Bharatpur", type: "Water" }
-  ],
-  DG001: [
-    { id: "ADV_SWIM_RS", name: "Lagoon Swim at Ross & Smith", type: "Water" },
-    { id: "ADV_BOAT_RS", name: "Boat Excursion to Twin Islands", type: "Boat" }
-  ]
-};
-
-function SectionToggle({ title, count, expanded, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      style={{
-        width: "100%",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "10px 12px",
-        borderRadius: "12px",
-        border: "1px solid #E5E7EB",
-        background: "#F9FAFB",
-        cursor: "pointer",
-        marginBottom: expanded ? "8px" : "12px"
-      }}
-    >
-      <div style={{ textAlign: "left" }}>
-        <div
-          style={{
-            fontSize: "0.9rem",
-            fontWeight: 600,
-            color: "#111827"
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: "0.8rem",
-            color: "#6B7280"
-          }}
-        >
-          {count > 0 ? `${count} options` : "No options available yet"}
-        </div>
-      </div>
-      <span
-        style={{
-          fontSize: "1rem",
-          color: "#6B7280"
-        }}
-      >
-        {expanded ? "▴" : "▾"}
-      </span>
-    </button>
-  );
-}
-
-function PillButton({ active, labelIdle, labelActive, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        borderRadius: "999px",
-        padding: "6px 11px",
-        fontSize: "0.8rem",
-        fontWeight: 500,
-        border: active ? "1px solid #16A34A" : "1px solid #D1D5DB",
-        background: active ? "rgba(22,163,74,0.08)" : "#FFFFFF",
-        color: active ? "#166534" : "#111827",
-        cursor: "pointer"
-      }}
-    >
-      {active ? labelActive : labelIdle}
-    </button>
-  );
-}
-
-function LocationModal({
-  location,
-  onClose,
-  onAddLocation,
-  onAddAdventure
-}) {
-  const [expandedNearby, setExpandedNearby] = useState(false);
-  const [expandedAdventures, setExpandedAdventures] = useState(false);
-  const [addedNearbyIds, setAddedNearbyIds] = useState({});
-  const [addedAdventureIds, setAddedAdventureIds] = useState({});
-
+function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
   if (!location) return null;
 
   const {
@@ -156,39 +14,78 @@ function LocationModal({
     bestTime,
     durationSuggested,
     galleryImages = [],
-    nearby = []
+    // optional extra fields
+    nearby,
+    adventures,
+    adventuresShort,
   } = location;
 
-  const nearbyCards = useMemo(() => {
-    return (nearby || [])
-      .map((nid) => {
-        const meta = LOCATION_META[nid];
-        if (!meta) return null;
-        return { id: nid, ...meta };
+  // --- Normalised Nearby list (strings or objects) ---
+  const nearbyItems = useMemo(() => {
+    if (!Array.isArray(nearby)) return [];
+    return nearby
+      .map((n, idx) => {
+        if (typeof n === "string") {
+          return {
+            id: `${id || "loc"}_nearby_${idx}`,
+            name: n,
+            island: island || "Andaman Islands",
+          };
+        }
+        if (n && typeof n === "object") {
+          return {
+            id: n.id || `${id || "loc"}_nearby_${idx}`,
+            name: n.name || "Nearby spot",
+            island: n.island || island || "Andaman Islands",
+          };
+        }
+        return null;
       })
       .filter(Boolean);
-  }, [nearby]);
+  }, [nearby, id, island]);
 
-  const adventuresHere = ADVENTURES_BY_LOCATION[id] || [];
+  // --- Normalised Adventures list (strings or objects) ---
+  const adventuresItems = useMemo(() => {
+    const raw = Array.isArray(adventures)
+      ? adventures
+      : Array.isArray(adventuresShort)
+      ? adventuresShort
+      : [];
+    return raw
+      .map((a, idx) => {
+        if (typeof a === "string") {
+          return {
+            id: `${id || "loc"}_adv_${idx}`,
+            name: a,
+            type: "Adventure",
+          };
+        }
+        if (a && typeof a === "object") {
+          return {
+            id: a.id || `${id || "loc"}_adv_${idx}`,
+            name: a.name || "Adventure",
+            type: a.type || a.category || "Adventure",
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [adventures, adventuresShort, id]);
 
-  const toggleNearbyAdded = (nid) => {
-    setAddedNearbyIds((prev) => ({
-      ...prev,
-      [nid]: !prev[nid]
-    }));
+  const [showNearby, setShowNearby] = useState(true);      // expanded by default
+  const [showAdventures, setShowAdventures] = useState(true); // expanded by default
+  const [addedNearby, setAddedNearby] = useState({});
+  const [addedAdv, setAddedAdv] = useState({});
+
+  const handleToggleNearby = (itemId) => {
+    setAddedNearby((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
     if (onAddLocation) onAddLocation();
   };
 
-  const toggleAdventureAdded = (aid) => {
-    setAddedAdventureIds((prev) => ({
-      ...prev,
-      [aid]: !prev[aid]
-    }));
+  const handleToggleAdventure = (advId) => {
+    setAddedAdv((prev) => ({ ...prev, [advId]: !prev[advId] }));
     if (onAddAdventure) onAddAdventure();
   };
-
-  const nearbyCount = nearbyCards.length;
-  const adventuresCount = adventuresHere.length;
 
   return (
     <div
@@ -196,12 +93,12 @@ function LocationModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15, 23, 42, 0.35)",
+        background: "rgba(15, 23, 42, 0.35)", // soft dark overlay
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         zIndex: 9999,
-        padding: "12px"
+        padding: "12px",
       }}
       onClick={onClose}
     >
@@ -210,13 +107,13 @@ function LocationModal({
         style={{
           width: "100%",
           maxWidth: "900px",
-          height: "70vh",
+          height: "70vh", // ~70% of screen height
           background: "#FFFFFF",
           color: "#111827",
           borderRadius: "18px",
           padding: "20px 22px",
           boxShadow: "0 18px 60px rgba(15, 23, 42, 0.30)",
-          overflowY: "auto"
+          overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -227,7 +124,7 @@ function LocationModal({
             justifyContent: "space-between",
             alignItems: "flex-start",
             marginBottom: "10px",
-            gap: "12px"
+            gap: "12px",
           }}
         >
           <div>
@@ -236,7 +133,7 @@ function LocationModal({
                 fontSize: "1.35rem",
                 fontWeight: 600,
                 margin: 0,
-                marginBottom: "4px"
+                marginBottom: "4px",
               }}
             >
               {name}
@@ -245,7 +142,7 @@ function LocationModal({
               style={{
                 fontSize: "0.9rem",
                 margin: 0,
-                color: "#6B7280"
+                color: "#6B7280",
               }}
             >
               {island}
@@ -259,7 +156,7 @@ function LocationModal({
               color: "#6B7280",
               fontSize: "1.25rem",
               cursor: "pointer",
-              lineHeight: 1
+              lineHeight: 1,
             }}
             aria-label="Close location details"
           >
@@ -275,7 +172,7 @@ function LocationModal({
                 fontSize: "0.95rem",
                 fontWeight: 600,
                 margin: 0,
-                marginBottom: "4px"
+                marginBottom: "4px",
               }}
             >
               Overview
@@ -285,7 +182,7 @@ function LocationModal({
                 fontSize: "0.9rem",
                 lineHeight: 1.55,
                 margin: 0,
-                color: "#4B5563"
+                color: "#4B5563",
               }}
             >
               {overview}
@@ -301,7 +198,7 @@ function LocationModal({
                 fontSize: "0.95rem",
                 fontWeight: 600,
                 margin: 0,
-                marginBottom: "4px"
+                marginBottom: "4px",
               }}
             >
               Why you should go
@@ -311,7 +208,7 @@ function LocationModal({
                 paddingLeft: "1.1rem",
                 margin: 0,
                 fontSize: "0.9rem",
-                color: "#374151"
+                color: "#374151",
               }}
             >
               {whyGo.map((point, idx) => (
@@ -329,7 +226,7 @@ function LocationModal({
             display: "grid",
             gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.2fr)",
             gap: "16px",
-            marginBottom: "12px"
+            marginBottom: "12px",
           }}
         >
           {highlights.length > 0 && (
@@ -339,7 +236,7 @@ function LocationModal({
                   fontSize: "0.95rem",
                   fontWeight: 600,
                   margin: 0,
-                  marginBottom: "4px"
+                  marginBottom: "4px",
                 }}
               >
                 Highlights
@@ -349,7 +246,7 @@ function LocationModal({
                   paddingLeft: "1.1rem",
                   margin: 0,
                   fontSize: "0.9rem",
-                  color: "#374151"
+                  color: "#374151",
                 }}
               >
                 {highlights.map((h, idx) => (
@@ -366,7 +263,7 @@ function LocationModal({
               background: "#F9FAFB",
               borderRadius: "12px",
               padding: "10px 12px",
-              border: "1px solid #E5E7EB"
+              border: "1px solid #E5E7EB",
             }}
           >
             <h3
@@ -374,7 +271,7 @@ function LocationModal({
                 fontSize: "0.9rem",
                 fontWeight: 600,
                 margin: 0,
-                marginBottom: "4px"
+                marginBottom: "4px",
               }}
             >
               Quick info
@@ -384,7 +281,7 @@ function LocationModal({
                 fontSize: "0.85rem",
                 margin: 0,
                 marginBottom: "4px",
-                color: "#4B5563"
+                color: "#4B5563",
               }}
             >
               <strong>Best time:</strong>{" "}
@@ -397,7 +294,7 @@ function LocationModal({
                 fontSize: "0.85rem",
                 margin: 0,
                 marginBottom: "2px",
-                color: "#4B5563"
+                color: "#4B5563",
               }}
             >
               <strong>Suggested duration:</strong>{" "}
@@ -416,7 +313,7 @@ function LocationModal({
                 fontSize: "0.95rem",
                 fontWeight: 600,
                 margin: 0,
-                marginBottom: "4px"
+                marginBottom: "4px",
               }}
             >
               Visit tips
@@ -426,7 +323,7 @@ function LocationModal({
                 paddingLeft: "1.1rem",
                 margin: 0,
                 fontSize: "0.9rem",
-                color: "#374151"
+                color: "#374151",
               }}
             >
               {visitTips.map((tip, idx) => (
@@ -446,7 +343,7 @@ function LocationModal({
                 fontSize: "0.95rem",
                 fontWeight: 600,
                 margin: 0,
-                marginBottom: "4px"
+                marginBottom: "4px",
               }}
             >
               Gallery
@@ -455,7 +352,7 @@ function LocationModal({
               style={{
                 display: "flex",
                 gap: "8px",
-                overflowX: "auto"
+                overflowX: "auto",
               }}
             >
               {galleryImages.map((src, idx) => (
@@ -467,7 +364,7 @@ function LocationModal({
                     borderRadius: "10px",
                     overflow: "hidden",
                     background: "#E5E7EB",
-                    border: "1px solid #E5E7EB"
+                    border: "1px solid #E5E7EB",
                   }}
                 >
                   <img
@@ -477,7 +374,7 @@ function LocationModal({
                       width: "100%",
                       height: "100%",
                       objectFit: "cover",
-                      display: "block"
+                      display: "block",
                     }}
                   />
                 </div>
@@ -486,25 +383,66 @@ function LocationModal({
           </section>
         )}
 
-        {/* Collapsible: Nearby attractions */}
+        {/* Nearby places (expanded but collapsible) */}
         <section style={{ marginBottom: "10px" }}>
-          <SectionToggle
-            title="Nearby attractions"
-            count={nearbyCount}
-            expanded={expandedNearby}
-            onToggle={() => setExpandedNearby((v) => !v)}
-          />
-          {expandedNearby && nearbyCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowNearby((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 10px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#F9FAFB",
+              cursor: "pointer",
+              marginBottom: showNearby ? "8px" : "12px",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: "#111827",
+                }}
+              >
+                Nearby places
+              </div>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#6B7280",
+                }}
+              >
+                {nearbyItems.length
+                  ? `${nearbyItems.length} options`
+                  : "No nearby places added yet"}
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: "1rem",
+                color: "#6B7280",
+              }}
+            >
+              {showNearby ? "▴" : "▾"}
+            </span>
+          </button>
+
+          {showNearby && nearbyItems.length > 0 && (
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
-                marginBottom: "10px"
+                marginBottom: "4px",
               }}
             >
-              {nearbyCards.map((n) => {
-                const active = !!addedNearbyIds[n.id];
+              {nearbyItems.map((n) => {
+                const active = !!addedNearby[n.id];
                 return (
                   <div
                     key={n.id}
@@ -513,21 +451,17 @@ function LocationModal({
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "8px 10px",
-                      borderRadius: "12px",
+                      borderRadius: "10px",
                       border: "1px solid #E5E7EB",
-                      background: "#FFFFFF"
+                      background: "#FFFFFF",
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
+                    <div style={{ marginRight: "8px" }}>
                       <div
                         style={{
                           fontSize: "0.9rem",
                           fontWeight: 500,
                           color: "#111827",
-                          whiteSpace: "nowrap",
-                          textOverflow: "ellipsis",
-                          overflow: "hidden",
-                          maxWidth: "210px"
                         }}
                       >
                         {n.name}
@@ -535,18 +469,33 @@ function LocationModal({
                       <div
                         style={{
                           fontSize: "0.8rem",
-                          color: "#6B7280"
+                          color: "#6B7280",
                         }}
                       >
                         {n.island}
                       </div>
                     </div>
-                    <PillButton
-                      active={active}
-                      labelIdle="Add to trip"
-                      labelActive="Added ✓"
-                      onClick={() => toggleNearbyAdded(n.id)}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => handleToggleNearby(n.id)}
+                      style={{
+                        borderRadius: "999px",
+                        padding: "6px 11px",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        border: active
+                          ? "1px solid #16A34A"
+                          : "1px solid #D1D5DB",
+                        background: active
+                          ? "rgba(22,163,74,0.08)"
+                          : "#FFFFFF",
+                        color: active ? "#166534" : "#111827",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {active ? "Added ✓" : "Add to trip"}
+                    </button>
                   </div>
                 );
               })}
@@ -554,25 +503,66 @@ function LocationModal({
           )}
         </section>
 
-        {/* Collapsible: Adventures available here */}
+        {/* Adventures available here (expanded but collapsible) */}
         <section style={{ marginBottom: "12px" }}>
-          <SectionToggle
-            title="Adventures available here"
-            count={adventuresCount}
-            expanded={expandedAdventures}
-            onToggle={() => setExpandedAdventures((v) => !v)}
-          />
-          {expandedAdventures && adventuresCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAdventures((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 10px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#F9FAFB",
+              cursor: "pointer",
+              marginBottom: showAdventures ? "8px" : "12px",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: "#111827",
+                }}
+              >
+                Adventures available here
+              </div>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#6B7280",
+                }}
+              >
+                {adventuresItems.length
+                  ? `${adventuresItems.length} options`
+                  : "No adventures linked yet"}
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: "1rem",
+                color: "#6B7280",
+              }}
+            >
+              {showAdventures ? "▴" : "▾"}
+            </span>
+          </button>
+
+          {showAdventures && adventuresItems.length > 0 && (
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
-                marginBottom: "10px"
+                marginBottom: "4px",
               }}
             >
-              {adventuresHere.map((adv) => {
-                const active = !!addedAdventureIds[adv.id];
+              {adventuresItems.map((adv) => {
+                const active = !!addedAdv[adv.id];
                 return (
                   <div
                     key={adv.id}
@@ -581,17 +571,17 @@ function LocationModal({
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "8px 10px",
-                      borderRadius: "12px",
+                      borderRadius: "10px",
                       border: "1px solid #E5E7EB",
-                      background: "#FFFFFF"
+                      background: "#FFFFFF",
                     }}
                   >
-                    <div>
+                    <div style={{ marginRight: "8px" }}>
                       <div
                         style={{
                           fontSize: "0.9rem",
                           fontWeight: 500,
-                          color: "#111827"
+                          color: "#111827",
                         }}
                       >
                         {adv.name}
@@ -599,18 +589,33 @@ function LocationModal({
                       <div
                         style={{
                           fontSize: "0.8rem",
-                          color: "#6B7280"
+                          color: "#6B7280",
                         }}
                       >
                         {adv.type}
                       </div>
                     </div>
-                    <PillButton
-                      active={active}
-                      labelIdle="Add"
-                      labelActive="Added ✓"
-                      onClick={() => toggleAdventureAdded(adv.id)}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAdventure(adv.id)}
+                      style={{
+                        borderRadius: "999px",
+                        padding: "6px 11px",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        border: active
+                          ? "1px solid #16A34A"
+                          : "1px solid #D1D5DB",
+                        background: active
+                          ? "rgba(22,163,74,0.08)"
+                          : "#FFFFFF",
+                        color: active ? "#166534" : "#111827",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {active ? "Added ✓" : "Add"}
+                    </button>
                   </div>
                 );
               })}
@@ -628,7 +633,7 @@ function LocationModal({
             justifyContent: "space-between",
             alignItems: "center",
             gap: "8px",
-            flexWrap: "wrap"
+            flexWrap: "wrap",
           }}
         >
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -642,7 +647,7 @@ function LocationModal({
                 color: "#FFFFFF",
                 fontSize: "0.9rem",
                 fontWeight: 500,
-                cursor: "pointer"
+                cursor: "pointer",
               }}
             >
               Add location
@@ -657,7 +662,7 @@ function LocationModal({
                 color: "#111827",
                 fontSize: "0.9rem",
                 fontWeight: 500,
-                cursor: "pointer"
+                cursor: "pointer",
               }}
             >
               Add adventures
@@ -673,7 +678,7 @@ function LocationModal({
               background: "#F3F4F6",
               color: "#374151",
               fontSize: "0.85rem",
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             Close
