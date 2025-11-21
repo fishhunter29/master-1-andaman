@@ -895,7 +895,7 @@ export default function App() {
                           fontWeight: 600,
                         }}
                       >
-                        {picked ? "Selected" : "Select"}
+                        {picked ? "Added ✓" : "Add Location"}
                       </button>
                     </div>
                   );
