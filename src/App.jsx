@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import MobileSummaryBar from "./components/MobileSummaryBar.jsx";
+import LocationModal from "./components/LocationModal.jsx";
 
 /* -----------------------------------
    Helpers & Normalisers
@@ -1467,185 +1468,18 @@ export default function App() {
       </main>
 
       {/* Location detail modal */}
-      {openLoc && (
-        <div
-          id="loc-ov"
-          onClick={(e) => {
-            if (e.target.id === "loc-ov") closeModal();
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,.45)",
-            zIndex: 1000,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-end",
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 520,
-              background: "white",
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              overflow: "hidden",
-              boxShadow: "0 -16px 40px rgba(0,0,0,.28)",
-            }}
-          >
-            <div style={{ position: "relative" }}>
-              {openLoc.image ? (
-                <div
-                  style={{
-                    height: 180,
-                    background: `url(${openLoc.image}) center/cover`,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    height: 180,
-                    background:
-                      "linear-gradient(135deg,#bae6fd,#f9fafb)",
-                  }}
-                />
-              )}
-              <button
-                onClick={closeModal}
-                aria-label="Close"
-                style={{
-                  position: "absolute",
-                  right: 10,
-                  top: 10,
-                  background: "rgba(0,0,0,.5)",
-                  color: "white",
-                  border: 0,
-                  width: 32,
-                  height: 32,
-                  borderRadius: 999,
-                  fontSize: 18,
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div style={{ padding: 14 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <b style={{ fontSize: 16 }}>{openLoc.name}</b>
-                <span style={{ fontSize: 12, color: "#64748b" }}>
-                  {openLoc.island}
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "#334155",
-                  marginTop: 6,
-                }}
-              >
-                {openLoc.brief ||
-                  "No description yet. This fits well into a relaxed Andaman itinerary."}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  marginTop: 8,
-                }}
-              >
-                {(openLoc.moods || inferMoods(openLoc))
-                  .slice(0, 4)
-                  .map((m) => (
-                    <span
-                      key={m}
-                      style={{
-                        fontSize: 11,
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        border: "1px solid #e5e7eb",
-                        background: "#f8fafc",
-                      }}
-                    >
-                      {m}
-                    </span>
-                  ))}
-                <span
-                  style={{
-                    fontSize: 11,
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    background: "#ecfeff",
-                    color: "#0369a1",
-                    border: "1px solid #bae6fd",
-                  }}
-                >
-                  {(openLoc.durationHrs ?? 2)}h typical
-                </span>
-              </div>
-
-              <div style={{ marginTop: 10 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#475569",
-                    marginBottom: 6,
-                  }}
-                >
-                  Suggested adventures nearby
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {(() => {
-                    const map = locAdventures.find(
-                      (m) => m.locationId === openLoc.id
-                    );
-                    const ids = map?.adventureIds || [];
-                    const top = activities
-                      .filter((a) => ids.includes(a.id))
-                      .slice(0, 3);
-                    const show =
-                      top.length > 0
-                        ? top
-                        : activities
-                            .filter((a) =>
-                              (a.islands || []).includes(openLoc.island)
-                            )
-                            .slice(0, 3);
-                    return show.map((a) => (
-                      <span
-                        key={a.id}
-                        style={{
-                          fontSize: 11,
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          border: "1px solid #e5e7eb",
-                          background: "white",
-                        }}
-                      >
-                        {a.name}
-                      </span>
-                    ));
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <LocationModal
+        location={openLoc}
+        onClose={closeModal}
+        onAddLocation={() => {
+          console.log("Add location to trip:", openLoc?.id);
+          // Later: push this location into the trip summary selection
+        }}
+        onAddAdventure={() => {
+          console.log("Add adventures for location:", openLoc?.id);
+          // Later: open an adventures picker based on this location / island
+        }}
+      />
       {/* Mobile summary bar */}
       <MobileSummaryBar
         total={grandTotal}
