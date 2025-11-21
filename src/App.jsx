@@ -266,21 +266,26 @@ export default function App() {
   // Adventures
   const [addonIds, setAddonIds] = useState([]);
 
-  // Location modal
-  const [openLoc, setOpenLoc] = useState(null);
-
-  // Load JSON data once
-  useEffect(() => {
-    const withTimeout = (promise, ms, label) =>
-      Promise.race([
-        promise,
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`${label} timed out after ${ms}ms`)),
-            ms
-          )
-        ),
-      ]);
+  <LocationModal
+  location={openLoc}
+  onClose={closeModal}
+  onAddLocation={(locId) => {
+    if (!locId) return;
+    setSelectedIds((prev) =>
+      prev.includes(locId) ? prev : [...prev, locId]
+    );
+  }}
+  onAddAdventure={(advId) => {
+    if (!advId) return;
+    setAddonIds((prev) =>
+      prev.includes(advId) ? prev : [...prev, advId]
+    );
+  }}
+  onOpenLocation={(locId) => {
+    const target = locations.find((l) => l.id === locId);
+    if (target) setOpenLoc(target);
+  }}
+/>
 
     const fetchJSON = async (path, label) => {
       try {
