@@ -1,8 +1,248 @@
 [
   {
-    "locationId": "PB002",
-    "adventureIds": [
-      "light_sound_show"
+    "location_id": "BT001",
+    "adventure_ids": [
+      "mangrove_boat_baratang",
+      "limestone_caves_baratang"
+    ]
+  },
+  {
+    "location_id": "BT003",
+    "adventure_ids": [
+      "mangrove_boat_baratang"
+    ]
+  },
+  {
+    "location_id": "DP001",
+    "adventure_ids": [
+      "snorkeling_guided"
+    ]
+  },
+  {
+    "location_id": "DP002",
+    "adventure_ids": [
+      "trek_saddle_peak"
+    ]
+  },
+  {
+    "location_id": "DP003",
+    "adventure_ids": [
+      "turtle_watch_guided"
+    ]
+  },
+  {
+    "location_id": "DP006",
+    "adventure_ids": [
+      "guided_nature_walk"
+    ]
+  },
+  {
+    "location_id": "HV001",
+    "adventure_ids": [
+      "sunset_photography"
+    ]
+  },
+  {
+    "location_id": "HV003",
+    "adventure_ids": [
+      "sea_walk",
+      "snorkeling_guided",
+      "glass_bottom_boat"
+    ]
+  },
+  {
+    "location_id": "HV004",
+    "adventure_ids": [
+      "discover_scuba_try_dive"
+    ]
+  },
+  {
+    "location_id": "HV005",
+    "adventure_ids": [
+      "discover_scuba_try_dive"
+    ]
+  },
+  {
+    "location_id": "HV006",
+    "adventure_ids": [
+      "kayaking_day",
+      "kayaking_biolum"
+    ]
+  },
+  {
+    "location_id": "HV007",
+    "adventure_ids": [
+      "scuba_fun_dive"
+    ]
+  },
+  {
+    "location_id": "LA001",
+    "adventure_ids": [
+      "surf_lesson"
+    ]
+  },
+  {
+    "location_id": "LA003",
+    "adventure_ids": [
+      "guided_nature_walk"
+    ]
+  },
+  {
+    "location_id": "LI001",
+    "adventure_ids": [
+      "snorkeling_guided"
+    ]
+  },
+  {
+    "location_id": "LI002",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "glass_bottom_boat"
+    ]
+  },
+  {
+    "location_id": "LI003",
+    "adventure_ids": [
+      "drone_photography"
+    ]
+  },
+  {
+    "location_id": "MB001",
+    "adventure_ids": [
+      "turtle_watch_guided"
+    ]
+  },
+  {
+    "location_id": "MB002",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "picnic_hike_easy"
+    ]
+  },
+  {
+    "location_id": "NL001",
+    "adventure_ids": [
+      "glass_bottom_boat",
+      "snorkeling_guided"
+    ]
+  },
+  {
+    "location_id": "NL002",
+    "adventure_ids": [
+      "sunset_photography"
+    ]
+  },
+  {
+    "location_id": "NL003",
+    "adventure_ids": [
+      "guided_nature_walk"
+    ]
+  },
+  {
+    "location_id": "PB002",
+    "adventure_ids": [
+      "dinner_cruise"
+    ]
+  },
+  {
+    "location_id": "PB004",
+    "adventure_ids": [
+      "jet_ski",
+      "sofa_ride",
+      "banana_boat"
+    ]
+  },
+  {
+    "location_id": "PB006",
+    "adventure_ids": [
+      "trek_munda_pahad"
+    ]
+  },
+  {
+    "location_id": "PB008",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "glass_bottom_boat"
+    ]
+  },
+  {
+    "location_id": "PB009",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "glass_bottom_boat"
+    ]
+  },
+  {
+    "location_id": "PB016",
+    "adventure_ids": [
+      "picnic_hike_easy"
+    ]
+  },
+  {
+    "location_id": "PB017",
+    "adventure_ids": [
+      "sea_walk",
+      "semi_submarine",
+      "snorkeling_guided",
+      "glass_bottom_boat"
+    ]
+  },
+  {
+    "location_id": "PB018",
+    "adventure_ids": [
+      "heritage_walk"
+    ]
+  },
+  {
+    "location_id": "PB025",
+    "adventure_ids": [
+      "birding_walk"
+    ]
+  },
+  {
+    "location_id": "RG002",
+    "adventure_ids": [
+      "guided_nature_walk"
+    ]
+  },
+  {
+    "location_id": "RX001",
+    "adventure_ids": [
+      "scuba_fun_dive",
+      "game_fishing_halfday"
+    ]
+  },
+  {
+    "location_id": "RX002",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "scuba_fun_dive"
+    ]
+  },
+  {
+    "location_id": "RX003",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "scuba_fun_dive"
+    ]
+  },
+  {
+    "location_id": "RX004",
+    "adventure_ids": [
+      "snorkeling_guided",
+      "picnic_hike_easy"
+    ]
+  },
+  {
+    "location_id": "RX005",
+    "adventure_ids": [
+      "drone_photography"
+    ]
+  },
+  {
+    "location_id": "RX006",
+    "adventure_ids": [
+      "boat_sunset"
     ]
   }
 ]
