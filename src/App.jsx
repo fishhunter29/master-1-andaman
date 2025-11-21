@@ -876,27 +876,27 @@ export default function App() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() =>
-                          setSelectedIds((prev) =>
-                            prev.includes(l.id)
-                              ? prev.filter((x) => x !== l.id)
-                              : [...prev, l.id]
-                          )
-                        }
-                        style={{
-                          marginTop: 8,
-                          width: "100%",
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #0ea5e9",
-                          background: picked ? "#0ea5e9" : "white",
-                          color: picked ? "white" : "#0ea5e9",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {picked ? "Added ✓" : "Add Location"}
-                      </button>
+                     <button
+  onClick={() =>
+    setSelectedIds((prev) =>
+      prev.includes(l.id)
+        ? prev.filter((x) => x !== l.id)
+        : [...prev, l.id]
+    )
+  }
+  style={{
+    marginTop: 8,
+    width: "100%",
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1px solid #0ea5e9",
+    background: picked ? "#0ea5e9" : "white",
+    color: picked ? "white" : "#0ea5e9",
+    fontWeight: 600,
+  }}
+>
+  {picked ? "Added ✓" : "Add Location"}
+</button>
                     </div>
                   );
                 })}
