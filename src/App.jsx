@@ -573,7 +573,45 @@ export default function App() {
     );
   }
 
-  const openModalFor = (loc) => setOpenLoc(loc);
+  const openModalFor = (loc) => {
+  // Nearby = other locations on same island (max 6)
+  const nearby = locations
+    .filter(
+      (l) =>
+        l.island === loc.island &&
+        l.id !== loc.id
+    )
+    .slice(0, 6)
+    .map((l) => ({
+      id: l.id,
+      name: l.name,
+      island: l.island,
+    }));
+
+  // Adventures mapped via location_adventures.json
+  const advIds = new Set();
+  locAdventures.forEach((m) => {
+    if (m.locationId === loc.id) {
+      (m.adventureIds || []).forEach((id) => advIds.add(id));
+    }
+  });
+
+  const adventures = activities
+    .filter((a) => advIds.has(a.id))
+    .map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.category || a.type || "Adventure",
+    }));
+
+  // Pass enriched data into modal via location object itself
+  setOpenLoc({
+    ...loc,
+    nearby,
+    adventures,
+  });
+};
+
   const closeModal = () => setOpenLoc(null);
 
   /* ---------- UI ---------- */
