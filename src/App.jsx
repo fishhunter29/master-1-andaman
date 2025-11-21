@@ -574,7 +574,7 @@ export default function App() {
   }
 
   const openModalFor = (loc) => {
-  // Nearby = other locations on same island (max 6)
+  // 1) Nearby = other locations on same island (max 6)
   const nearby = locations
     .filter(
       (l) =>
@@ -588,11 +588,15 @@ export default function App() {
       island: l.island,
     }));
 
-  // Adventures mapped via location_adventures.json
+  // 2) Adventures from location_adventures.json
   const advIds = new Set();
+
   locAdventures.forEach((m) => {
-    if (m.locationId === loc.id) {
-      (m.adventureIds || []).forEach((id) => advIds.add(id));
+    const locId = m.locationId || m.location_id;        // support both
+    const advList = m.adventureIds || m.adventure_ids || [];
+
+    if (locId && locId === loc.id) {
+      advList.forEach((id) => advIds.add(id));
     }
   });
 
@@ -604,7 +608,7 @@ export default function App() {
       type: a.category || a.type || "Adventure",
     }));
 
-  // Pass enriched data into modal via location object itself
+  // 3) Pass enriched object into modal
   setOpenLoc({
     ...loc,
     nearby,
