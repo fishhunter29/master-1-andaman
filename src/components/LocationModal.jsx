@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
   if (!location) return null;
@@ -13,7 +13,42 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
     bestTime,
     durationSuggested,
     galleryImages = [],
+    nearby = [],
+    adventures = [],
   } = location;
+
+  const [showNearby, setShowNearby] = useState(true);        // expanded by default
+  const [showAdventures, setShowAdventures] = useState(true); // expanded by default
+  const [addedNearby, setAddedNearby] = useState({});
+  const [addedAdv, setAddedAdv] = useState({});
+
+  const handleToggleNearby = (item) => {
+    setAddedNearby((prev) => ({
+      ...prev,
+      [item.id]: !prev[item.id],
+    }));
+    if (onAddLocation) onAddLocation();
+  };
+
+  const handleToggleAdventure = (adv) => {
+    setAddedAdv((prev) => ({
+      ...prev,
+      [adv.id]: !prev[adv.id],
+    }));
+    if (onAddAdventure) onAddAdventure();
+  };
+
+  // normalise nearby & adventures in case some are plain strings
+  const nearbyItems = nearby.map((n, idx) =>
+    typeof n === "string"
+      ? { id: `nearby_${idx}`, name: n, island }
+      : n
+  );
+  const adventureItems = adventures.map((a, idx) =>
+    typeof a === "string"
+      ? { id: `adv_${idx}`, name: a, type: "Adventure" }
+      : a
+  );
 
   return (
     <div
@@ -310,6 +345,236 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
             </div>
           </section>
         )}
+
+        {/* Nearby places – expanded, collapsible */}
+        <section style={{ marginBottom: "10px" }}>
+          <button
+            type="button"
+            onClick={() => setShowNearby((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 10px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#F9FAFB",
+              cursor: "pointer",
+              marginBottom: showNearby ? "8px" : "12px",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: "#111827",
+                }}
+              >
+                Nearby places
+              </div>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#6B7280",
+                }}
+              >
+                {nearbyItems.length
+                  ? `${nearbyItems.length} options`
+                  : "No nearby places added yet"}
+              </div>
+            </div>
+            <span style={{ fontSize: "1rem", color: "#6B7280" }}>
+              {showNearby ? "▴" : "▾"}
+            </span>
+          </button>
+
+          {showNearby && nearbyItems.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                marginBottom: "4px",
+              }}
+            >
+              {nearbyItems.map((n) => {
+                const active = !!addedNearby[n.id];
+                return (
+                  <div
+                    key={n.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 10px",
+                      borderRadius: "10px",
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                    }}
+                  >
+                    <div style={{ marginRight: "8px" }}>
+                      <div
+                        style={{
+                          fontSize: "0.9rem",
+                          fontWeight: 500,
+                          color: "#111827",
+                        }}
+                      >
+                        {n.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#6B7280",
+                        }}
+                      >
+                        {n.island}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleNearby(n)}
+                      style={{
+                        borderRadius: "999px",
+                        padding: "6px 11px",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        border: active
+                          ? "1px solid #16A34A"
+                          : "1px solid #D1D5DB",
+                        background: active
+                          ? "rgba(22,163,74,0.08)"
+                          : "#FFFFFF",
+                        color: active ? "#166534" : "#111827",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {active ? "Added ✓" : "Add to trip"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Adventures – expanded, collapsible */}
+        <section style={{ marginBottom: "12px" }}>
+          <button
+            type="button"
+            onClick={() => setShowAdventures((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 10px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#F9FAFB",
+              cursor: "pointer",
+              marginBottom: showAdventures ? "8px" : "12px",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: "#111827",
+                }}
+              >
+                Adventures available here
+              </div>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#6B7280",
+                }}
+              >
+                {adventureItems.length
+                  ? `${adventureItems.length} options`
+                  : "No adventures linked yet"}
+              </div>
+            </div>
+            <span style={{ fontSize: "1rem", color: "#6B7280" }}>
+              {showAdventures ? "▴" : "▾"}
+            </span>
+          </button>
+
+          {showAdventures && adventureItems.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                marginBottom: "4px",
+              }}
+            >
+              {adventureItems.map((adv) => {
+                const active = !!addedAdv[adv.id];
+                return (
+                  <div
+                    key={adv.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 10px",
+                      borderRadius: "10px",
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                    }}
+                  >
+                    <div style={{ marginRight: "8px" }}>
+                      <div
+                        style={{
+                          fontSize: "0.9rem",
+                          fontWeight: 500,
+                          color: "#111827",
+                        }}
+                      >
+                        {adv.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#6B7280",
+                        }}
+                      >
+                        {adv.type || "Adventure"}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAdventure(adv)}
+                      style={{
+                        borderRadius: "999px",
+                        padding: "6px 11px",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        border: active
+                          ? "1px solid #16A34A"
+                          : "1px solid #D1D5DB",
+                        background: active
+                          ? "rgba(22,163,74,0.08)"
+                          : "#FFFFFF",
+                        color: active ? "#166534" : "#111827",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {active ? "Added ✓" : "Add"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* CTA row */}
         <div
