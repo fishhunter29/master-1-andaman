@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 
-// Local lookup for basic labels (used for Nearby section).
+// Basic lookup for Nearby section labels
 const LOCATION_META = {
   PB001: { name: "Cellular Jail", island: "Port Blair" },
   PB002: { name: "Corbyn’s Cove Beach", island: "Port Blair" },
@@ -33,8 +33,7 @@ const LOCATION_META = {
   LI001: { name: "Long Island Village & Lalaji Bay (Generic Entry)", island: "Long Island" }
 };
 
-// Demo adventure mapping per location for UI.
-// Later this can be replaced by data from JSON files.
+// Demo adventure mapping for UI only
 const ADVENTURES_BY_LOCATION = {
   PB001: [
     { id: "ADV_LS_SHOW", name: "Light & Sound Show", type: "Experience" }
@@ -43,9 +42,6 @@ const ADVENTURES_BY_LOCATION = {
     { id: "ADV_SNORKEL_NB", name: "Snorkelling at North Bay", type: "Water" },
     { id: "ADV_GB_NB", name: "Glass-bottom Boat Ride", type: "Water" },
     { id: "ADV_SEAWALK_NB", name: "Sea Walk (Helmet)", type: "Water" }
-  ],
-  HV001: [
-    { id: "ADV_SUNSET_PHOTO_RH", name: "Sunset Photography Walk", type: "Experience" }
   ],
   HV003: [
     { id: "ADV_SNORKEL_EB", name: "Snorkelling at Elephant Beach", type: "Water" },
@@ -180,7 +176,6 @@ function LocationModal({
       ...prev,
       [nid]: !prev[nid]
     }));
-    console.log("Toggle nearby location in trip:", nid);
     if (onAddLocation) onAddLocation();
   };
 
@@ -189,7 +184,6 @@ function LocationModal({
       ...prev,
       [aid]: !prev[aid]
     }));
-    console.log("Toggle adventure in trip:", id, aid);
     if (onAddAdventure) onAddAdventure();
   };
 
