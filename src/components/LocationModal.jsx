@@ -17,6 +17,40 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
     adventures = [],
   } = location;
 
+  const [showNearby, setShowNearby] = useState(true);
+  const [showAdventures, setShowAdventures] = useState(true);
+  const [addedNearby, setAddedNearby] = useState({});
+  const [addedAdv, setAddedAdv] = useState({});
+
+  const nearbyItems = nearby.map((n, idx) =>
+    typeof n === "string"
+      ? { id: `nearby_${idx}`, name: n, island }
+      : n
+  );
+
+  const adventureItems = adventures.map((a, idx) =>
+    typeof a === "string"
+      ? { id: `adv_${idx}`, name: a, type: "Adventure" }
+      : a
+  );
+
+function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
+  if (!location) return null;
+
+  const {
+    name,
+    island,
+    overview,
+    whyGo = [],
+    visitTips = [],
+    highlights = [],
+    bestTime,
+    durationSuggested,
+    galleryImages = [],
+    nearby = [],
+    adventures = [],
+  } = location;
+
   const [showNearby, setShowNearby] = useState(true);        // expanded by default
   const [showAdventures, setShowAdventures] = useState(true); // expanded by default
   const [addedNearby, setAddedNearby] = useState({});
@@ -514,6 +548,59 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
                 marginBottom: "4px",
               }}
             >
+                    {/* Adventures – expanded, collapsible */}
+        <section style={{ marginBottom: "12px" }}>
+          <button
+            type="button"
+            onClick={() => setShowAdventures((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 10px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#F9FAFB",
+              cursor: "pointer",
+              marginBottom: showAdventures ? "8px" : "12px",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: "#111827",
+                }}
+              >
+                Adventures available here
+              </div>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#6B7280",
+                }}
+              >
+                {adventureItems.length
+                  ? `${adventureItems.length} options`
+                  : "No adventures linked yet"}
+              </div>
+            </div>
+            <span style={{ fontSize: "1rem", color: "#6B7280" }}>
+              {showAdventures ? "▴" : "▾"}
+            </span>
+          </button>
+
+          {showAdventures && adventureItems.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                marginBottom: "4px",
+              }}
+            >
               {adventureItems.map((adv) => {
                 const active = !!addedAdv[adv.id];
                 return (
@@ -550,7 +637,12 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleToggleAdventure(adv)}
+                      onClick={() =>
+                        setAddedAdv((prev) => ({
+                          ...prev,
+                          [adv.id]: !prev[adv.id],
+                        }))
+                      }
                       style={{
                         borderRadius: "999px",
                         padding: "6px 11px",
