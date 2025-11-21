@@ -1,9 +1,52 @@
 import React, { useState } from "react";
 
-function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
+/**
+ * LocationModal
+ *
+ * Lightweight 70% height modal for location details.
+ *
+ * Expects `location` object shaped roughly like:
+ * {
+ *   id: "PB001",
+ *   name: "Cellular Jail",
+ *   island: "Port Blair",
+ *   overview: "Short text...",
+ *   whyGo: [ "...", "..." ],
+ *   visitTips: [ "...", "..." ],
+ *   highlights: [ "...", "..." ],
+ *   bestTime: "October to May, evenings for the show",
+ *   durationSuggested: "1.5–2 hours",
+ *   galleryImages: [ "/img/cellular-1.jpg", "/img/cellular-2.jpg" ],
+ *   nearby: [ { id, name, island }, ... ],
+ *   adventures: [ { id, name, basePriceINR, price, type, category }, ... ]
+ * }
+ *
+ * Callbacks:
+ * - onAddLocation(locId)
+ * - onAddAdventure(adventureId)
+ * - onOpenLocation(locId)   // used when clicking a nearby place
+ */
+
+function formatINR(n) {
+  const num = typeof n === "number" ? n : Number(n) || 0;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+function LocationModal({
+  location,
+  onClose,
+  onAddLocation,
+  onAddAdventure,
+  onOpenLocation,
+}) {
   if (!location) return null;
 
   const {
+    id,
     name,
     island,
     overview,
@@ -22,10 +65,9 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
   const [addedNearby, setAddedNearby] = useState({});
   const [addedAdv, setAddedAdv] = useState({});
 
+  // normalise nearby & adventures in case some are plain strings
   const nearbyItems = nearby.map((n, idx) =>
-    typeof n === "string"
-      ? { id: `nearby_${idx}`, name: n, island }
-      : n
+    typeof n === "string" ? { id: `nearby_${idx}`, name: n, island } : n
   );
 
   const adventureItems = adventures.map((a, idx) =>
@@ -34,34 +76,15 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
       : a
   );
 
-function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
-  if (!location) return null;
-
-  const {
-    name,
-    island,
-    overview,
-    whyGo = [],
-    visitTips = [],
-    highlights = [],
-    bestTime,
-    durationSuggested,
-    galleryImages = [],
-    nearby = [],
-    adventures = [],
-  } = location;
-
-  const [showNearby, setShowNearby] = useState(true);        // expanded by default
-  const [showAdventures, setShowAdventures] = useState(true); // expanded by default
-  const [addedNearby, setAddedNearby] = useState({});
-  const [addedAdv, setAddedAdv] = useState({});
-
   const handleToggleNearby = (item) => {
     setAddedNearby((prev) => ({
       ...prev,
       [item.id]: !prev[item.id],
     }));
-    if (onAddLocation) onAddLocation();
+    if (onAddLocation) {
+      // pass the real location id when available, otherwise fallback to this modal's location id
+      onAddLocation(item.id || id);
+    }
   };
 
   const handleToggleAdventure = (adv) => {
@@ -69,20 +92,10 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
       ...prev,
       [adv.id]: !prev[adv.id],
     }));
-    if (onAddAdventure) onAddAdventure();
+    if (onAddAdventure) {
+      onAddAdventure(adv.id);
+    }
   };
-
-  // normalise nearby & adventures in case some are plain strings
-  const nearbyItems = nearby.map((n, idx) =>
-    typeof n === "string"
-      ? { id: `nearby_${idx}`, name: n, island }
-      : n
-  );
-  const adventureItems = adventures.map((a, idx) =>
-    typeof a === "string"
-      ? { id: `adv_${idx}`, name: a, type: "Adventure" }
-      : a
-  );
 
   return (
     <div
@@ -448,7 +461,15 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
                       background: "#FFFFFF",
                     }}
                   >
-                    <div style={{ marginRight: "8px" }}>
+                    <div
+                      style={{
+                        marginRight: "8px",
+                        cursor: onOpenLocation ? "pointer" : "default",
+                      }}
+                      onClick={() =>
+                        onOpenLocation && onOpenLocation(n.id)
+                      }
+                    >
                       <div
                         style={{
                           fontSize: "0.9rem",
@@ -548,61 +569,15 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
                 marginBottom: "4px",
               }}
             >
-                    {/* Adventures – expanded, collapsible */}
-        <section style={{ marginBottom: "12px" }}>
-          <button
-            type="button"
-            onClick={() => setShowAdventures((v) => !v)}
-            style={{
-              width: "100%",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "8px 10px",
-              borderRadius: "10px",
-              border: "1px solid #E5E7EB",
-              background: "#F9FAFB",
-              cursor: "pointer",
-              marginBottom: showAdventures ? "8px" : "12px",
-            }}
-          >
-            <div style={{ textAlign: "left" }}>
-              <div
-                style={{
-                  fontSize: "0.9rem",
-                  fontWeight: 600,
-                  color: "#111827",
-                }}
-              >
-                Adventures available here
-              </div>
-              <div
-                style={{
-                  fontSize: "0.8rem",
-                  color: "#6B7280",
-                }}
-              >
-                {adventureItems.length
-                  ? `${adventureItems.length} options`
-                  : "No adventures linked yet"}
-              </div>
-            </div>
-            <span style={{ fontSize: "1rem", color: "#6B7280" }}>
-              {showAdventures ? "▴" : "▾"}
-            </span>
-          </button>
-
-          {showAdventures && adventureItems.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                marginBottom: "4px",
-              }}
-            >
               {adventureItems.map((adv) => {
                 const active = !!addedAdv[adv.id];
+                const price =
+                  adv.basePriceINR != null
+                    ? adv.basePriceINR
+                    : adv.price != null
+                    ? adv.price
+                    : 0;
+
                 return (
                   <div
                     key={adv.id}
@@ -632,17 +607,24 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
                           color: "#6B7280",
                         }}
                       >
-                        {adv.type || "Adventure"}
+                        {adv.type || adv.category || "Adventure"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#0F172A",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {formatINR(price)}{" "}
+                        <span style={{ color: "#6B7280" }}>
+                          per person (indicative)
+                        </span>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setAddedAdv((prev) => ({
-                          ...prev,
-                          [adv.id]: !prev[adv.id],
-                        }))
-                      }
+                      onClick={() => handleToggleAdventure(adv)}
                       style={{
                         borderRadius: "999px",
                         padding: "6px 11px",
@@ -683,7 +665,7 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
         >
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
-              onClick={onAddLocation}
+              onClick={() => onAddLocation && onAddLocation(id)}
               style={{
                 border: "none",
                 padding: "8px 14px",
@@ -698,7 +680,11 @@ function LocationModal({ location, onClose, onAddLocation, onAddAdventure }) {
               Add location
             </button>
             <button
-              onClick={onAddAdventure}
+              onClick={() =>
+                onAddAdventure &&
+                adventureItems[0] &&
+                onAddAdventure(adventureItems[0].id)
+              }
               style={{
                 border: "1px solid #D1D5DB",
                 padding: "8px 14px",
