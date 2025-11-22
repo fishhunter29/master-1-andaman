@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import MobileSummaryBar from "./components/MobileSummaryBar.jsx";
 import LocationModal from "./components/LocationModal.jsx";
 
 /* -----------------------------------
@@ -762,7 +761,7 @@ export default function App() {
         style={{
           position: "sticky",
           top: 0,
-          zIndex: 20,
+          zIndex: 10,
           background: "white",
           borderBottom: "1px solid #e5e7eb",
         }}
@@ -771,12 +770,15 @@ export default function App() {
           style={{
             maxWidth: 1200,
             margin: "0 auto",
-            padding: "12px 16px",
+            padding: "12px 16px 8px 16px",
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: "flex-start",
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
+          {/* left: title */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div
               style={{
@@ -789,56 +791,64 @@ export default function App() {
             />
             <b>Create Your Andaman Tour</b>
           </div>
-          <span
-            style={{
-              fontSize: 12,
-              display: "inline-flex",
-              gap: 6,
-              alignItems: "center",
-            }}
-          >
-            <span style={{ color: "#64748b" }}>Step</span>
-            <span
-              style={{
-                fontWeight: 800,
-                background: "white",
-                border: "1px solid #e5e7eb",
-                padding: "2px 8px",
-                borderRadius: 999,
-              }}
-            >
-              {step + 1} / 6
-            </span>
-          </span>
-        </div>
-        <Stepper step={step} setStep={setStep} />
-        {isMobile && (
+
+          {/* right: step + mini summary */}
           <div
             style={{
-              maxWidth: 1200,
-              margin: "0 auto",
-              padding: "0 16px 10px 16px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 6,
+              marginLeft: "auto",
             }}
           >
-            <MobileSummaryBar
-              total={grandTotal}
-              lineItems={[
-                { label: "Hotels", amount: hotelsTotal },
-                { label: "Ferries", amount: ferryTotal },
-                { label: "Boat", amount: boatTotal },
-                { label: "Ground", amount: logisticsTotal },
-                { label: "Adventures", amount: addonsTotal },
-              ]}
-              badges={[
-                { label: "days", value: String(days.length) },
-                { label: "travellers", value: String(pax) },
-              ]}
-              onRequestToBook={() =>
-                alert("This would submit a lead for the full itinerary.")
-              }
-            />
+            <span
+              style={{
+                fontSize: 12,
+                display: "inline-flex",
+                gap: 6,
+                alignItems: "center",
+              }}
+            >
+              <span style={{ color: "#64748b" }}>Step</span>
+              <span
+                style={{
+                  fontWeight: 800,
+                  background: "white",
+                  border: "1px solid #e5e7eb",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                }}
+              >
+                {step + 1} / 6
+              </span>
+            </span>
+
+            {/* TOP SUMMARY BAR (replaces the mobile bottom bar) */}
+            <div
+              style={{
+                display: "inline-flex",
+                flexWrap: "wrap",
+                gap: 8,
+                padding: "4px 10px",
+                borderRadius: 999,
+                background:
+                  "linear-gradient(90deg,#0891b2,#06b6d4,#22d3ee)",
+                color: "white",
+                fontSize: 11,
+                boxShadow: "0 4px 12px rgba(8,145,178,0.35)",
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>
+                Total: {formatINR(grandTotal)}
+              </span>
+              <span>• {days.length} day(s)</span>
+              <span>• {pax} traveller(s)</span>
+            </div>
           </div>
-        )}
+        </div>
+
+        <Stepper step={step} setStep={setStep} />
       </header>
 
       {/* Body */}
