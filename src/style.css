@@ -1,47 +1,130 @@
-/* Basic layout */
+
+/* Global reset & safe area handling */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f6f7f8;
+}
+
+/* Main layout container (desktop) */
 .app-main {
   max-width: 1200px;
   margin: 0 auto;
   padding: 16px;
+  box-sizing: border-box;
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr);
   gap: 16px;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 
+/* Sidebar on desktop */
 .sidebar {
-  /* just a hook; sticky handled inline */
+  display: block;
 }
 
-/* Mobile stacking */
+/* Mobile layout */
 @media (max-width: 768px) {
   .app-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
+
   .sidebar {
-    display: none; /* desktop-only; mobile has floating summary bar */
+    display: none;
   }
 }
 
-/* Optional light defaults */
-* { box-sizing: border-box; }
-html, body, #root { height: 100%; }
-body { margin: 0; background: #f6f7f8; color: #0f172a; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-button { cursor: pointer; }
+/* Mobile summary bar – STICKY to the bottom with safe-area support */
+.mobile-summary-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
 
-/* Inputs: subtle focus ring for modern feel */
-input, select, textarea, button {
-  font: inherit;
+  /* safe area padding */
+  padding-bottom: env(safe-area-inset-bottom);
+
+  /* visual styling */
+  background: #0f172a;
+  color: #e5e7eb;
+  box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.3);
 }
-input[type="date"], input[type="number"], select, textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: white;
-  color: #0f172a;
+
+.mobile-summary-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 14px;
+  box-sizing: border-box;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
 }
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14,165,233,.15);
+
+.mobile-summary-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobile-summary-total {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.mobile-summary-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.mobile-summary-line {
+  display: flex;
+  gap: 4px;
+}
+
+.mobile-summary-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.mobile-summary-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+}
+
+.mobile-summary-cta {
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #22d3ee;
+  background: #0ea5e9;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Only show bar on small screens */
+@media (min-width: 769px) {
+  .mobile-summary-bar {
+    display: none;
+  }
 }
