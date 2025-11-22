@@ -1,216 +1,114 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 
+/**
+ * MobileSummaryBar
+ * - Fixed to bottom of viewport on small screens
+ * - Uses safe-area-inset-bottom so it sits exactly on the bottom edge
+ * - Does NOT push content up (it's an overlay)
+ */
 export default function MobileSummaryBar({
-  total = 0,
+  total,
   lineItems = [],
   badges = [],
-  onRequestToBook = () => {},
-  breakpointPx = 768
+  onRequestToBook,
 }) {
-  const [open, setOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(true);
-
-  // format helper
-  const formatINR = (n) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0
-    }).format(Number(n) || 0);
-
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpointPx - 1}px)`);
-    const update = () => setIsMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, [breakpointPx]);
-
-  // Optional: lock scroll when open
-  useEffect(() => {
-    if (!open) return;
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
-    return () => (document.body.style.overflow = overflow);
-  }, [open]);
-
-  if (!isMobile) return null;
+  // Very small guard: don't render on wide screens (desktop)
+  if (typeof window !== "undefined" && window.innerWidth >= 900) {
+    return null;
+  }
 
   return (
-    <>
-      {/* overlay */}
-      {open && (
-        <button
-          aria-label="Close summary"
-          onClick={() => setOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,.35)",
-            zIndex: 50,
-            border: 0
-          }}
-        />
-      )}
-
-      {/* fixed bottom bar (full-bleed) */}
+    <div
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 50,
+        // Use safe area so it hugs the very bottom on iOS/Android
+        paddingBottom: "max(6px, env(safe-area-inset-bottom, 0px))",
+        paddingTop: 6,
+        paddingInline: 10,
+        background:
+          "linear-gradient(180deg, rgba(15,23,42,0) 0%, rgba(15,23,42,0.12) 10%, rgba(15,23,42,0.35) 100%)",
+        pointerEvents: "none", // container is non-interactive
+      }}
+    >
       <div
         style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 60,
-          paddingBottom: "max(env(safe-area-inset-bottom), 0px)"
+          maxWidth: 480,
+          margin: "0 auto",
+          borderRadius: 999,
+          background:
+            "linear-gradient(90deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%)",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "8px 10px",
+          boxShadow: "0 8px 24px rgba(15, 23, 42, 0.35)",
+          pointerEvents: "auto", // inner content is clickable
         }}
       >
-        {/* HEADER BUTTON: two cells (Total | Value) */}
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls="mobile-summary-panel"
-          style={{
-            width: "100%",
-            border: 0,
-            borderRadius: 0,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            alignItems: "center",
-            background:
-              "linear-gradient(90deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%)",
-            color: "white",
-            padding: "12px 12px"
-          }}
-        >
-          {/* LEFT CELL: 'Total' tag */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              opacity: 0.9,
+            }}
+          >
+            TOTAL
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>
+            ₹{Number(total || 0).toLocaleString("en-IN", {
+              maximumFractionDigits: 0,
+            })}
+          </div>
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 10
+              flexWrap: "wrap",
+              gap: 6,
+              marginTop: 2,
             }}
           >
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 800,
-                background: "rgba(255,255,255,.15)",
-                border: "1px solid rgba(255,255,255,.25)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                letterSpacing: 0.3
-              }}
-            >
-              TOTAL
-            </span>
-
-            {/* optional mini badges (days, travellers) */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {badges.map((b, i) => (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    background: "rgba(255,255,255,.12)",
-                    color: "white",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,.25)"
-                  }}
-                >
-                  {b.value} {b.label}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* RIGHT CELL: value in white pill, strong black text */}
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <span
-              style={{
-                background: "white",
-                color: "#0f172a",
-                padding: "8px 12px",
-                borderRadius: 12,
-                fontWeight: 900,
-                fontSize: 16,
-                boxShadow: "0 2px 8px rgba(0,0,0,.12)"
-              }}
-            >
-              {formatINR(total)}
-            </span>
-          </div>
-        </button>
-
-        {/* SLIDE PANEL with animation */}
-        <div
-          id="mobile-summary-panel"
-          role="region"
-          aria-label="Trip summary details"
-          style={{
-            background: "white",
-            borderTop: "1px solid #e5e7eb",
-            boxShadow: "0 -12px 28px rgba(0,0,0,.18)",
-            overflow: "hidden",
-            transform: open ? "translateY(0%)" : "translateY(100%)",
-            transition: "transform 240ms ease",
-            willChange: "transform"
-          }}
-        >
-          <div style={{ padding: "12px 12px 8px" }}>
-            {lineItems.map((li, idx) => (
-              <div
-                key={idx}
+            {badges.map((b) => (
+              <span
+                key={b.label}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "8px 0",
-                  fontSize: 14
+                  fontSize: 10,
+                  padding: "2px 6px",
+                  borderRadius: 999,
+                  background: "rgba(15,23,42,0.18)",
+                  border: "1px solid rgba(15,23,42,0.28)",
                 }}
               >
-                <span>{li.label}</span>
-                <strong>{formatINR(li.amount)}</strong>
-              </div>
+                {b.value} {b.label}
+              </span>
             ))}
-
-            <div style={{ borderTop: "1px dashed #e5e7eb", margin: "6px 0" }} />
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "8px 0",
-                fontSize: 16
-              }}
-            >
-              <span>Total (indicative)</span>
-              <strong>{formatINR(total)}</strong>
-            </div>
-
-            <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>
-              Prices indicative; confirmed at booking.
-            </div>
-
-            <button
-              onClick={onRequestToBook}
-              style={{
-                width: "100%",
-                marginTop: 10,
-                padding: "12px 14px",
-                borderRadius: 12,
-                border: "1px solid #0ea5e9",
-                background: "#0ea5e9",
-                color: "white",
-                fontWeight: 800
-              }}
-            >
-              Request to Book
-            </button>
           </div>
         </div>
+
+        <button
+          onClick={onRequestToBook}
+          style={{
+            flexShrink: 0,
+            borderRadius: 999,
+            border: "1px solid rgba(15,23,42,0.1)",
+            background: "white",
+            color: "#0f172a",
+            fontWeight: 800,
+            fontSize: 12,
+            padding: "8px 12px",
+            minWidth: 110,
+          }}
+        >
+          Request to Book
+        </button>
       </div>
-    </>
+    </div>
   );
 }
