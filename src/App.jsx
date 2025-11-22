@@ -653,7 +653,6 @@ export default function App() {
     () => boatLegCount * BOAT_BASE_REMOTE * Math.max(1, adults),
     [boatLegCount, adults]
   );
-ials.ferryClass, adults]);
 
   const cabDayRate = useMemo(() => {
     const found = CAB_MODELS.find((c) => c.id === essentials.cabModelId);
@@ -706,11 +705,16 @@ ials.ferryClass, adults]);
     });
   };
 
-  const toggleBicycle = (island) => {
+  const toggleBicycle = (island, enableExplicit) => {
     setBicycleIslands((prev) => {
       const next = new Set(prev);
-      if (next.has(island)) next.delete(island);
-      else next.add(island);
+      if (typeof enableExplicit === "boolean") {
+        if (enableExplicit) next.add(island);
+        else next.delete(island);
+      } else {
+        if (next.has(island)) next.delete(island);
+        else next.add(island);
+      }
       return next;
     });
   };
@@ -739,49 +743,70 @@ ials.ferryClass, adults]);
   }
 
   const openModalFor = (loc) => {
-  // 1) Nearby = other locations on same island (max 6)
-  const nearby = locations
-    .filter(
-      (l) =>
-        l.island === loc.island &&
-        l.id !== loc.id
-    )
-    .slice(0, 6)
-    .map((l) => ({
-      id: l.id,
-      name: l.name,
-      island: l.island,
-    }));
+    // 1) Nearby = other locations on same island (max 6)
+    const nearby = locations
+      .filter(
+        (l) =>
+          l.island === loc.island &&
+          l.id !== loc.id
+      )
+      .slice(0, 6)
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        island: l.island,
+      }));
 
-  // 2) Adventures from location_adventures.json
-  const advIds = new Set();
+    // 2) Adventures from location_adventures.json
+    const advIds = new Set();
 
-  locAdventures.forEach((m) => {
-    const locId = m.locationId || m.location_id;        // support both
-    const advList = m.adventureIds || m.adventure_ids || [];
+    locAdventures.forEach((m) => {
+      const locId = m.locationId || m.location_id;        // support both
+      const advList = m.adventureIds || m.adventure_ids || [];
 
-    if (locId && locId === loc.id) {
-      advList.forEach((id) => advIds.add(id));
-    }
-  });
+      if (locId && locId === loc.id) {
+        advList.forEach((id) => advIds.add(id));
+      }
+    });
 
-  const adventures = activities
-    .filter((a) => advIds.has(a.id))
-    .map((a) => ({
-      id: a.id,
-      name: a.name,
-      type: a.category || a.type || "Adventure",
-    }));
+    const adventures = activities
+      .filter((a) => advIds.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        type: a.category || a.type || "Adventure",
+        basePriceINR: a.basePriceINR ?? a.price ?? 0,
+      }));
 
-  // 3) Pass enriched object into modal
-  setOpenLoc({
-    ...loc,
-    nearby,
-    adventures,
-  });
-};
+    // 3) Pass enriched object into modal
+    setOpenLoc({
+      ...loc,
+      nearby,
+      adventures,
+    });
+  };
 
   const closeModal = () => setOpenLoc(null);
+
+  const handleAddLocationFromModal = (id) => {
+    if (!id) return;
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev : [...prev, id]
+    );
+  };
+
+  const handleAddAdventureFromModal = (id) => {
+    if (!id) return;
+    setAddonIds((prev) =>
+      prev.includes(id) ? prev : [...prev, id]
+    );
+  };
+
+  const handleOpenLocationFromModal = (id) => {
+    if (!id) return;
+    const loc = locations.find((l) => l.id === id);
+    if (loc) openModalFor(loc);
+  };
 
   /* ---------- UI ---------- */
 
@@ -1055,7 +1080,7 @@ ials.ferryClass, adults]);
                           fontWeight: 600,
                         }}
                       >
-                        {picked ? "Selected" : "Select"}
+                        {picked ? "Added to trip" : "Add location"}
                       </button>
                     </div>
                   );
@@ -1201,6 +1226,9 @@ ials.ferryClass, adults]);
                           {day.items.some((it) => it.type === "ferry") && (
                             <Chip tone="blue">Ferry</Chip>
                           )}
+                          {day.items.some((it) => it.type === "boat") && (
+                            <Chip tone="blue">Boat</Chip>
+                          )}
                           {day.items.some((it) => it.type === "arrival") && (
                             <Chip tone="green">Arrival</Chip>
                           )}
@@ -1261,6 +1289,7 @@ ials.ferryClass, adults]);
                       </ul>
 
                       {!day.items.some((it) => it.type === "ferry") &&
+                        !day.items.some((it) => it.type === "boat") &&
                         !day.items.some((it) => it.type === "departure") && (
                           <div
                             style={{
@@ -1786,14 +1815,9 @@ ials.ferryClass, adults]);
       <LocationModal
         location={openLoc}
         onClose={closeModal}
-        onAddLocation={() => {
-          console.log("Add location to trip:", openLoc?.id);
-          // Later: push this location into the trip summary selection
-        }}
-        onAddAdventure={() => {
-          console.log("Add adventures for location:", openLoc?.id);
-          // Later: open an adventures picker based on this location / island
-        }}
+        onAddLocation={handleAddLocationFromModal}
+        onAddAdventure={handleAddAdventureFromModal}
+        onOpenLocation={handleOpenLocationFromModal}
       />
       {/* Mobile summary bar */}
       <MobileSummaryBar
@@ -1839,7 +1863,7 @@ const pillBtn = {
 };
 
 const dangerBtn = {
-  border: "1px solid #ef4444",
+  border: "1px solid "#ef4444",
   background: "white",
   color: "#ef4444",
   borderRadius: 999,
