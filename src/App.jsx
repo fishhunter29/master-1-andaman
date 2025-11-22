@@ -70,6 +70,20 @@ function inferMoods(loc) {
   return Array.from(moods);
 }
 
+
+function normalizeIslandName(rawIsland) {
+  if (!rawIsland) return "Port Blair (South Andaman)";
+  const s = String(rawIsland).trim();
+  if (/^port blair/i.test(s)) return "Port Blair (South Andaman)";
+  if (/havelock/i.test(s)) return "Havelock (Swaraj Dweep)";
+  if (/neil/i.test(s) || /shaheed dweep/i.test(s)) return "Neil (Shaheed Dweep)";
+  if (/long island/i.test(s)) return "Long Island (Middle Andaman)";
+  if (/rangat/i.test(s)) return "Rangat (Middle Andaman)";
+  if (/mayabunder/i.test(s)) return "Mayabunder (Middle Andaman)";
+  if (/diglipur|north andaman/i.test(s)) return "Diglipur & North Andaman";
+  if (/little andaman|hut bay/i.test(s)) return "Little Andaman";
+  return s;
+}
 const DEFAULT_ISLANDS = [
   "Port Blair (South Andaman)",
   "Havelock (Swaraj Dweep)",
@@ -95,6 +109,8 @@ const ISLAND_NAME_TO_CODE = Object.fromEntries(
 
 
 // Pricing
+
+const BOAT_BASE_REMOTE = 1200;
 const FERRY_BASE_ECON = 1500;
 const FERRY_CLASS_MULT = { Economy: 1, Deluxe: 1.4, Luxury: 1.9 };
 
@@ -149,10 +165,33 @@ function orderByBestTime(items) {
 // Always: Day 1 = arrival at IXZ
 // Always: last day = mandatory departure from IXZ
 
-function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = true) {
+
+// Determine whether a leg between islands should be treated as a remote boat transfer
+function isRemoteBoatIsland(islandName) {
+  const s = normalizeIslandName(islandName || "");
+  return (
+    /Baratang/i.test(s) ||
+    /Long Island/i.test(s) ||
+    /Little Andaman/i.test(s) ||
+    /Diglipur/i.test(s) ||
+    /North Andaman/i.test(s)
+  );
+}
+
+function isBoatLeg(fromIsland, toIsland) {
+  const a = normalizeIslandName(fromIsland || "");
+  const b = normalizeIslandName(toIsland || "");
+  if (a === b) return false;
+  return isRemoteBoatIsland(a) || isRemoteBoatIsland(b);
+}
+
+// Always: Day 1 = arrival at IXZ
+// Always: last day = mandatory departure from IXZ
+// This version also inserts ferry / boat legs only when island actually changes.
+function generateItineraryDays(selectedLocs, selectedActivityIslands, startFromPB = true) {
   const days = [];
 
-  // Day 1: arrival at Port Blair (always)
+  // Day 1: arrival
   days.push({
     island: "Port Blair (South Andaman)",
     items: [
@@ -162,8 +201,8 @@ function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = t
     transport: "Point-to-Point",
   });
 
-  // If nothing is selected at all, still ensure mandatory departure
-  if (!selectedLocs.length && !selectedActivities.length) {
+  // If nothing selected, still ensure mandatory departure day
+  if (!selectedLocs.length && !selectedActivityIslands.size) {
     days.push({
       island: "Port Blair (South Andaman)",
       items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
@@ -172,50 +211,38 @@ function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = t
     return days;
   }
 
-  // --- Group locations & adventures by island name ---
-  const byIslandLoc = {};
+  // Collect all islands from locations + activity islands
+  const islandSet = new Set();
   selectedLocs.forEach((l) => {
-    const isl = l.island || "Port Blair (South Andaman)";
-    (byIslandLoc[isl] ||= []).push(l);
+    if (l.island) islandSet.add(normalizeIslandName(l.island));
+  });
+  selectedActivityIslands.forEach((isl) => {
+    if (isl) islandSet.add(normalizeIslandName(isl));
   });
 
-  const byIslandAdv = {};
-  selectedActivities.forEach((a) => {
-    const ops = Array.isArray(a.operatedIn) ? a.operatedIn : [];
-    if (!ops.length) return;
-    ops.forEach((code) => {
-      const islName = ISLAND_CODE_TO_NAME[code];
-      if (!islName) return;
-      (byIslandAdv[islName] ||= []).push(a);
-    });
-  });
-
-  // Islands we actually need to visit based on locations + adventures
-  const islandSet = new Set([
-    ...Object.keys(byIslandLoc),
-    ...Object.keys(byIslandAdv),
-  ]);
-
-  // If user somehow ended up with no island names, still just do PB-only
+  // If still empty, fall back to PB only
   if (!islandSet.size) {
-    days.push({
-      island: "Port Blair (South Andaman)",
-      items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
-      transport: "—",
-    });
-    return days;
+    islandSet.add("Port Blair (South Andaman)");
   }
 
-  // Determine island visiting order using DEFAULT_ISLANDS as reference
+  // Build mapping island -> locations
+  const byIsland = {};
+  selectedLocs.forEach((l) => {
+    const isl = normalizeIslandName(l.island);
+    if (!byIsland[isl]) byIsland[isl] = [];
+    byIsland[isl].push(l);
+  });
+
+  // Visiting order using DEFAULT_ISLANDS as reference
   let order = Array.from(islandSet).sort((a, b) => {
     const ia = DEFAULT_ISLANDS.indexOf(a);
     const ib = DEFAULT_ISLANDS.indexOf(b);
     return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
   });
 
-  // Optionally ensure we start from Port Blair block if present
+  // Ensure Port Blair is first if startFromPB
+  const pbName = "Port Blair (South Andaman)";
   if (startFromPB) {
-    const pbName = "Port Blair (South Andaman)";
     if (order.includes(pbName)) {
       order = [pbName, ...order.filter((x) => x !== pbName)];
     } else {
@@ -225,23 +252,11 @@ function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = t
 
   const maxHoursPerDay = 7;
 
-  const orderByBestTime = (items) => {
-    const rank = (it) => {
-      const arr = (it.bestTimes || []).map((x) => String(x).toLowerCase());
-      if (arr.some((t) => t.includes("morning") || t.includes("sunrise"))) return 0;
-      if (arr.some((t) => t.includes("afternoon"))) return 1;
-      if (arr.some((t) => t.includes("evening") || t.includes("sunset"))) return 2;
-      return 3;
-    };
-    return [...items].sort((a, b) => rank(a) - rank(b));
-  };
-
-  // Build content days island by island
-  order.forEach((island, idx) => {
-    const locs = orderByBestTime(byIslandLoc[island] || []);
-    const advs = byIslandAdv[island] || [];
-
+  // Helper to push location buckets as separate days
+  const pushLocationBucketsForIsland = (isl, locs) => {
+    const sorted = orderByBestTime(locs || []);
     const buckets = [];
+
     let bucket = [];
     let timeUsed = 0;
 
@@ -252,96 +267,73 @@ function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = t
       timeUsed = 0;
     };
 
-    const pushItem = (item, dur) => {
+    const pushItem = (loc, dur) => {
       const duration = Number.isFinite(dur) ? dur : 2;
       const would = timeUsed + duration;
       if (bucket.length >= 5 || would > maxHoursPerDay) pushBucket();
-      bucket.push(item);
+      bucket.push({
+        type: "location",
+        ref: loc.id,
+        name: loc.name,
+        durationHrs: duration,
+        bestTimes: loc.bestTimes || [],
+      });
       timeUsed += duration;
     };
 
-    // Locations as items
-    locs.forEach((loc) => {
+    sorted.forEach((loc) => {
       const dur = Number.isFinite(loc.durationHrs) ? loc.durationHrs : 2;
-      pushItem(
-        {
-          type: "location",
-          ref: loc.id,
-          name: loc.name,
-          durationHrs: dur,
-          bestTimes: loc.bestTimes || [],
-        },
-        dur
-      );
+      pushItem(loc, dur);
     });
-
-    // Adventures as items (if any) for this island
-    advs.forEach((adv) => {
-      const dur =
-        Number.isFinite(adv.durationHrs) && adv.durationHrs > 0
-          ? adv.durationHrs
-          : adv.durationMin
-          ? adv.durationMin / 60
-          : 2;
-      pushItem(
-        {
-          type: "adventure",
-          ref: adv.id,
-          name: adv.name,
-          durationHrs: dur,
-          bestTimes: adv.bestTimes || [],
-        },
-        dur
-      );
-    });
-
     pushBucket();
 
-    // Convert buckets into actual itinerary days
     buckets.forEach((items) => {
       days.push({
-        island,
+        island: isl,
         items,
         transport:
-          items.filter((x) => x.type === "location").length >= 3
-            ? "Day Cab"
-            : /Havelock|Neil/.test(island)
+          items.filter((it) => it.type === "location").length >= 3
+            ? "Cab (full day)"
+            : /Havelock|Neil/.test(isl)
             ? "Scooter"
             : "Point-to-Point",
       });
     });
-  });
+  };
 
-  // Insert ferry hops whenever island changes between consecutive days
-  for (let i = 0; i < days.length - 1; i++) {
-    const curr = days[i];
-    const next = days[i + 1];
-    if (!curr || !next) continue;
-    if (curr.island === next.island) continue;
+  // Build days per island + inter-island legs
+  for (let idx = 0; idx < order.length; idx++) {
+    const island = order[idx];
+    const locs = byIsland[island] || [];
+    if (locs.length) pushLocationBucketsForIsland(island, locs);
 
-    days.splice(i + 1, 0, {
-      island: curr.island,
-      items: [
-        {
-          type: "ferry",
-          name: `Ferry ${curr.island} → ${next.island}`,
-          time: "08:00–09:30",
-        },
-      ],
-      transport: "—",
-    });
-    i++; // skip over the inserted ferry day
+    const nextIsland = order[idx + 1];
+    if (nextIsland && nextIsland !== island) {
+      const boat = isBoatLeg(island, nextIsland);
+      days.push({
+        island,
+        items: [
+          {
+            type: boat ? "boat" : "ferry",
+            name: `${boat ? "Boat" : "Ferry"} ${island} → ${nextIsland}`,
+            time: "08:00–09:30",
+          },
+        ],
+        transport: "—",
+      });
+    }
   }
 
-  // Ensure we end back at Port Blair + mandatory departure
+  // Ensure we end back at PB + mandatory departure
   const lastIsland = days[days.length - 1]?.island;
-  if (lastIsland && lastIsland !== "Port Blair (South Andaman)") {
+  if (lastIsland && lastIsland !== pbName) {
+    const boat = isBoatLeg(lastIsland, pbName);
     days.push({
       island: lastIsland,
       items: [
         {
-          type: "ferry",
-          name: `Ferry ${lastIsland} → Port Blair (South Andaman)`,
+          type: boat ? "boat" : "ferry",
+          name: `${boat ? "Boat" : "Ferry"} ${lastIsland} → ${pbName}`,
         },
       ],
       transport: "—",
@@ -349,15 +341,13 @@ function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = t
   }
 
   days.push({
-    island: "Port Blair (South Andaman)",
+    island: pbName,
     items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
     transport: "—",
   });
 
   return days;
 }
-}
-
 /* -----------------------------------
    Main App component
 ------------------------------------ */
@@ -450,6 +440,7 @@ export default function App() {
     () =>
       rawLocations.map((l) => ({
         ...l,
+        island: normalizeIslandName(l.island),
         moods: Array.isArray(l.moods) && l.moods.length ? l.moods : inferMoods(l),
       })),
     [rawLocations]
@@ -488,7 +479,13 @@ export default function App() {
   // Itinerary auto-generate whenever locations / activities / startPB change
   useEffect(() => {
     const selectedActivities = activities.filter((a) => addonIds.includes(a.id));
-    setDays(generateItineraryDays(selectedLocs, selectedActivities, startPB));
+    const activityIslands = new Set();
+    selectedActivities.forEach((a) => {
+      (a.operatedIn || a.islands || []).forEach((isl) => {
+        if (isl) activityIslands.add(normalizeIslandName(isl));
+      });
+    });
+    setDays(generateItineraryDays(selectedLocs, activityIslands, startPB));
   }, [selectedLocs, activities, addonIds, startPB]);
 
 // Day tools
@@ -628,6 +625,7 @@ export default function App() {
     [addonIds, activities]
   );
 
+
   const ferryLegCount = useMemo(
     () =>
       days.reduce(
@@ -637,10 +635,25 @@ export default function App() {
     [days]
   );
 
+  const boatLegCount = useMemo(
+    () =>
+      days.reduce(
+        (acc, d) => acc + d.items.filter((i) => i.type === "boat").length,
+        0
+      ),
+    [days]
+  );
+
   const ferryTotal = useMemo(() => {
     const mult = FERRY_CLASS_MULT[essentials.ferryClass] ?? 1;
     return ferryLegCount * FERRY_BASE_ECON * mult * Math.max(1, adults);
   }, [ferryLegCount, essentials.ferryClass, adults]);
+
+  const boatTotal = useMemo(
+    () => boatLegCount * BOAT_BASE_REMOTE * Math.max(1, adults),
+    [boatLegCount, adults]
+  );
+ials.ferryClass, adults]);
 
   const cabDayRate = useMemo(() => {
     const found = CAB_MODELS.find((c) => c.id === essentials.cabModelId);
@@ -676,7 +689,7 @@ export default function App() {
     return sum;
   }, [days, scooterIslands, bicycleIslands, cabDayRate]);
 
-  const grandTotal = hotelsTotal + addonsTotal + logisticsTotal + ferryTotal;
+  const grandTotal = hotelsTotal + addonsTotal + logisticsTotal + ferryTotal + boatTotal;
   const pax = adults + infants;
 
   const toggleScooter = (island, enableExplicit) => {
@@ -1447,7 +1460,7 @@ export default function App() {
                 >
                   <b>Ground Transport</b>
                   <Row>
-                    <Field label="Cab model (Day Cab days)">
+                    <Field label="Preferred cab model">
                       <select
                         value={essentials.cabModelId}
                         onChange={(e) =>
@@ -1459,7 +1472,7 @@ export default function App() {
                       >
                         {CAB_MODELS.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.label} — {c.category}
+                            {c.label}
                           </option>
                         ))}
                       </select>
@@ -1709,6 +1722,7 @@ export default function App() {
                     fontSize: 14,
                   }}
                 >
+                  
                   <RowSplit
                     label="Hotels"
                     value={formatINR(hotelsTotal)}
@@ -1716,6 +1730,10 @@ export default function App() {
                   <RowSplit
                     label="Ferries"
                     value={formatINR(ferryTotal)}
+                  />
+                  <RowSplit
+                    label="Boat / remote transfers"
+                    value={formatINR(boatTotal)}
                   />
                   <RowSplit
                     label="Ground transport"
@@ -1783,6 +1801,7 @@ export default function App() {
         lineItems={[
           { label: "Hotels", amount: hotelsTotal },
           { label: "Ferries", amount: ferryTotal },
+          { label: "Boat", amount: boatTotal },
           { label: "Ground transport", amount: logisticsTotal },
           { label: "Adventures", amount: addonsTotal },
         ]}
