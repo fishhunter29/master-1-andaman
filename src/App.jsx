@@ -369,7 +369,7 @@ export default function App() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Load JSON
+  // Load JSON data once
   useEffect(() => {
     const withTimeout = (promise, ms, label) =>
       Promise.race([
@@ -385,7 +385,8 @@ export default function App() {
     const fetchJSON = async (path, label) => {
       try {
         const res = await withTimeout(fetch(path, { cache: "no-store" }), 8000, label);
-        if (!res.ok) throw new Error(`${label} ${res.status} ${res.statusText}`);
+        if (!res.ok)
+          throw new Error(`${label} ${res.status} ${res.statusText}`);
         return res.json();
       } catch (e) {
         console.error(`[data] ${label} failed:`, e);
@@ -409,13 +410,12 @@ export default function App() {
         setActivities(safeActs);
         setLocAdventures(safeMap);
         setDataStatus("ready");
-      } catch (e) {
+    } catch (e) {
         console.error("Data load fatal error:", e);
         setDataStatus("error");
       }
     })();
   }, []);
-
   const locations = useMemo(
     () =>
       rawLocations.map((l) => ({
