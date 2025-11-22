@@ -877,13 +877,7 @@ export default function App() {
       </header>
 
       {/* Body */}
-     <main
-  className="app-main"
-  style={{
-    paddingBottom: 96, // space for the mobile summary bar (adjust if you like)
-  }}
->
-
+      <main className="app-main" style={{ paddingBottom: "90px" }}>
         <section>
           {/* STEP 0: basics */}
           {step === 0 && (
