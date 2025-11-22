@@ -850,6 +850,21 @@ export default function App() {
               }}
             />
             <b>Create Your Andaman Tour</b>
+             <div
+  style={{
+    marginLeft: 12,
+    padding: "4px 10px",
+    background: "linear-gradient(90deg,#06b6d4,#22d3ee)",
+    color: "white",
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: 700,
+    boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+  }}
+>
+  {formatINR(grandTotal)}
+</div>
+
           </div>
           <span
             style={{
