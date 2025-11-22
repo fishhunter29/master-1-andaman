@@ -80,20 +80,54 @@ const DEFAULT_ISLANDS = [
   "Diglipur (North Andaman)",
   "Little Andaman",
 ];
+const ISLAND_CODE_TO_NAME = {
+  PB: "Port Blair (South Andaman)",
+  HL: "Havelock (Swaraj Dweep)",
+  NL: "Neil (Shaheed Dweep)",
+  LI: "Long Island (Middle Andaman)",
+  NA: "Diglipur & North Andaman",
+  LA: "Little Andaman",
+};
+
+const ISLAND_NAME_TO_CODE = Object.fromEntries(
+  Object.entries(ISLAND_CODE_TO_NAME).map(([code, name]) => [name, code])
+);
+
 
 // Pricing
 const FERRY_BASE_ECON = 1500;
 const FERRY_CLASS_MULT = { Economy: 1, Deluxe: 1.4, Luxury: 1.9 };
 
 const CAB_MODELS = [
-  { id: "sedan", label: "Sedan", dayRate: 2500 },
-  { id: "suv", label: "SUV", dayRate: 3200 },
-  { id: "innova", label: "Toyota Innova", dayRate: 3800 },
-  { id: "traveller", label: "Tempo Traveller (12)", dayRate: 5200 },
+  {
+    id: "sedan",
+    label: "Sedan (Dzire / Xcent / Amaze)",
+    category: "Comfort",
+    dayRate: 2500,
+  },
+  {
+    id: "suv",
+    label: "SUV (Ertiga / Carens / Similar)",
+    category: "Family",
+    dayRate: 3200,
+  },
+  {
+    id: "innova",
+    label: "Toyota Innova / Innova Crysta",
+    category: "Premium",
+    dayRate: 3800,
+  },
+  {
+    id: "traveller",
+    label: "Tempo Traveller (12-seater)",
+    category: "Group",
+    dayRate: 5200,
+  },
 ];
 
 const P2P_RATE_PER_HOP = 500;
 const SCOOTER_DAY_RATE = 800;
+const BICYCLE_DAY_RATE = 400;
 
 const SEATMAP_URL = "https://seatmap.example.com";
 
@@ -114,10 +148,11 @@ function orderByBestTime(items) {
 
 // Always: Day 1 = arrival at IXZ
 // Always: last day = mandatory departure from IXZ
-function generateItineraryDays(selectedLocs, startFromPB = true) {
+
+function generateItineraryDays(selectedLocs, selectedActivities, startFromPB = true) {
   const days = [];
 
-  // Day 1: arrival
+  // Day 1: arrival at Port Blair (always)
   days.push({
     island: "Port Blair (South Andaman)",
     items: [
@@ -127,8 +162,8 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
     transport: "Point-to-Point",
   });
 
-  if (!selectedLocs.length) {
-    // still ensure mandatory departure day
+  // If nothing is selected at all, still ensure mandatory departure
+  if (!selectedLocs.length && !selectedActivities.length) {
     days.push({
       island: "Port Blair (South Andaman)",
       items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
@@ -137,77 +172,168 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
     return days;
   }
 
-  // group by island
-  const byIsland = {};
+  // --- Group locations & adventures by island name ---
+  const byIslandLoc = {};
   selectedLocs.forEach((l) => {
-    (byIsland[l.island] ||= []).push(l);
+    const isl = l.island || "Port Blair (South Andaman)";
+    (byIslandLoc[isl] ||= []).push(l);
   });
 
-  // island visit order
-  let order = Object.keys(byIsland).sort(
-    (a, b) => DEFAULT_ISLANDS.indexOf(a) - DEFAULT_ISLANDS.indexOf(b)
-  );
-  if (startFromPB) {
-    const pb = "Port Blair (South Andaman)";
-    if (order.includes(pb)) order = [pb, ...order.filter((x) => x !== pb)];
-    else order = [pb, ...order];
+  const byIslandAdv = {};
+  selectedActivities.forEach((a) => {
+    const ops = Array.isArray(a.operatedIn) ? a.operatedIn : [];
+    if (!ops.length) return;
+    ops.forEach((code) => {
+      const islName = ISLAND_CODE_TO_NAME[code];
+      if (!islName) return;
+      (byIslandAdv[islName] ||= []).push(a);
+    });
+  });
+
+  // Islands we actually need to visit based on locations + adventures
+  const islandSet = new Set([
+    ...Object.keys(byIslandLoc),
+    ...Object.keys(byIslandAdv),
+  ]);
+
+  // If user somehow ended up with no island names, still just do PB-only
+  if (!islandSet.size) {
+    days.push({
+      island: "Port Blair (South Andaman)",
+      items: [{ type: "departure", name: "Airport Departure (IXZ) — Fly Out" }],
+      transport: "—",
+    });
+    return days;
   }
 
-  // Fill days ~7 hours per day
+  // Determine island visiting order using DEFAULT_ISLANDS as reference
+  let order = Array.from(islandSet).sort((a, b) => {
+    const ia = DEFAULT_ISLANDS.indexOf(a);
+    const ib = DEFAULT_ISLANDS.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+
+  // Optionally ensure we start from Port Blair block if present
+  if (startFromPB) {
+    const pbName = "Port Blair (South Andaman)";
+    if (order.includes(pbName)) {
+      order = [pbName, ...order.filter((x) => x !== pbName)];
+    } else {
+      order = [pbName, ...order];
+    }
+  }
+
+  const maxHoursPerDay = 7;
+
+  const orderByBestTime = (items) => {
+    const rank = (it) => {
+      const arr = (it.bestTimes || []).map((x) => String(x).toLowerCase());
+      if (arr.some((t) => t.includes("morning") || t.includes("sunrise"))) return 0;
+      if (arr.some((t) => t.includes("afternoon"))) return 1;
+      if (arr.some((t) => t.includes("evening") || t.includes("sunset"))) return 2;
+      return 3;
+    };
+    return [...items].sort((a, b) => rank(a) - rank(b));
+  };
+
+  // Build content days island by island
   order.forEach((island, idx) => {
-    const locs = orderByBestTime(byIsland[island] || []);
+    const locs = orderByBestTime(byIslandLoc[island] || []);
+    const advs = byIslandAdv[island] || [];
+
+    const buckets = [];
     let bucket = [];
     let timeUsed = 0;
 
-    const flush = () => {
+    const pushBucket = () => {
       if (!bucket.length) return;
+      buckets.push(bucket);
+      bucket = [];
+      timeUsed = 0;
+    };
+
+    const pushItem = (item, dur) => {
+      const duration = Number.isFinite(dur) ? dur : 2;
+      const would = timeUsed + duration;
+      if (bucket.length >= 5 || would > maxHoursPerDay) pushBucket();
+      bucket.push(item);
+      timeUsed += duration;
+    };
+
+    // Locations as items
+    locs.forEach((loc) => {
+      const dur = Number.isFinite(loc.durationHrs) ? loc.durationHrs : 2;
+      pushItem(
+        {
+          type: "location",
+          ref: loc.id,
+          name: loc.name,
+          durationHrs: dur,
+          bestTimes: loc.bestTimes || [],
+        },
+        dur
+      );
+    });
+
+    // Adventures as items (if any) for this island
+    advs.forEach((adv) => {
+      const dur =
+        Number.isFinite(adv.durationHrs) && adv.durationHrs > 0
+          ? adv.durationHrs
+          : adv.durationMin
+          ? adv.durationMin / 60
+          : 2;
+      pushItem(
+        {
+          type: "adventure",
+          ref: adv.id,
+          name: adv.name,
+          durationHrs: dur,
+          bestTimes: adv.bestTimes || [],
+        },
+        dur
+      );
+    });
+
+    pushBucket();
+
+    // Convert buckets into actual itinerary days
+    buckets.forEach((items) => {
       days.push({
         island,
-        items: bucket.map((x) => ({
-          type: "location",
-          ref: x.id,
-          name: x.name,
-          durationHrs: x.durationHrs ?? 2,
-          bestTimes: x.bestTimes || [],
-        })),
+        items,
         transport:
-          bucket.length >= 3
+          items.filter((x) => x.type === "location").length >= 3
             ? "Day Cab"
             : /Havelock|Neil/.test(island)
             ? "Scooter"
             : "Point-to-Point",
       });
-      bucket = [];
-      timeUsed = 0;
-    };
-
-    while (locs.length) {
-      const x = locs.shift();
-      const dur = Number.isFinite(x.durationHrs) ? x.durationHrs : 2;
-      const would = timeUsed + dur;
-      if (bucket.length >= 4 || would > 7) flush();
-      bucket.push(x);
-      timeUsed += dur;
-    }
-    flush();
-
-    const nextIsland = order[idx + 1];
-    if (nextIsland) {
-      days.push({
-        island,
-        items: [
-          {
-            type: "ferry",
-            name: `Ferry ${island} → ${nextIsland}`,
-            time: "08:00–09:30",
-          },
-        ],
-        transport: "—",
-      });
-    }
+    });
   });
 
-  // Ensure we end back at PB + mandatory departure
+  // Insert ferry hops whenever island changes between consecutive days
+  for (let i = 0; i < days.length - 1; i++) {
+    const curr = days[i];
+    const next = days[i + 1];
+    if (!curr || !next) continue;
+    if (curr.island === next.island) continue;
+
+    days.splice(i + 1, 0, {
+      island: curr.island,
+      items: [
+        {
+          type: "ferry",
+          name: `Ferry ${curr.island} → ${next.island}`,
+          time: "08:00–09:30",
+        },
+      ],
+      transport: "—",
+    });
+    i++; // skip over the inserted ferry day
+  }
+
+  // Ensure we end back at Port Blair + mandatory departure
   const lastIsland = days[days.length - 1]?.island;
   if (lastIsland && lastIsland !== "Port Blair (South Andaman)") {
     days.push({
@@ -229,6 +355,7 @@ function generateItineraryDays(selectedLocs, startFromPB = true) {
   });
 
   return days;
+}
 }
 
 /* -----------------------------------
@@ -257,6 +384,7 @@ export default function App() {
   // Itinerary / transport
   const [days, setDays] = useState([]);
   const [scooterIslands, setScooterIslands] = useState(() => new Set());
+  const [bicycleIslands, setBicycleIslands] = useState(() => new Set());
   const [chosenHotels, setChosenHotels] = useState({});
   const [essentials, setEssentials] = useState({
     ferryClass: "Deluxe",
@@ -266,26 +394,21 @@ export default function App() {
   // Adventures
   const [addonIds, setAddonIds] = useState([]);
 
-  <LocationModal
-  location={openLoc}
-  onClose={closeModal}
-  onAddLocation={(locId) => {
-    if (!locId) return;
-    setSelectedIds((prev) =>
-      prev.includes(locId) ? prev : [...prev, locId]
-    );
-  }}
-  onAddAdventure={(advId) => {
-    if (!advId) return;
-    setAddonIds((prev) =>
-      prev.includes(advId) ? prev : [...prev, advId]
-    );
-  }}
-  onOpenLocation={(locId) => {
-    const target = locations.find((l) => l.id === locId);
-    if (target) setOpenLoc(target);
-  }}
-/>
+  // Location modal
+  const [openLoc, setOpenLoc] = useState(null);
+
+  // Load JSON data once
+  useEffect(() => {
+    const withTimeout = (promise, ms, label) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`${label} timed out after ${ms}ms`)),
+            ms
+          )
+        ),
+      ]);
 
     const fetchJSON = async (path, label) => {
       try {
@@ -361,12 +484,14 @@ export default function App() {
     [locations, selectedIds]
   );
 
-  // Itinerary auto-generate whenever locations / startPB change
+  
+  // Itinerary auto-generate whenever locations / activities / startPB change
   useEffect(() => {
-    setDays(generateItineraryDays(selectedLocs, startPB));
-  }, [selectedLocs, startPB]);
+    const selectedActivities = activities.filter((a) => addonIds.includes(a.id));
+    setDays(generateItineraryDays(selectedLocs, selectedActivities, startPB));
+  }, [selectedLocs, activities, addonIds, startPB]);
 
-  // Day tools
+// Day tools
   const addEmptyDayAfter = (index) => {
     setDays((prev) => {
       const copy = [...prev];
@@ -531,23 +656,45 @@ export default function App() {
 
       const stops = day.items.filter((i) => i.type === "location").length;
 
+      // If scooter selected for this island, treat scooter as primary mode
       if (scooterIslands.has(day.island)) {
         sum += SCOOTER_DAY_RATE;
         return;
       }
 
+      // Otherwise, if bicycle selected for this island, treat cycle as primary mode
+      if (bicycleIslands.has(day.island)) {
+        sum += BICYCLE_DAY_RATE;
+        return;
+      }
+
+      // Fallback to day-level transport choice
       if (day.transport === "Day Cab") sum += cabDayRate;
       else if (day.transport === "Scooter") sum += SCOOTER_DAY_RATE;
       else sum += Math.max(1, stops - 1) * P2P_RATE_PER_HOP;
     });
     return sum;
-  }, [days, scooterIslands, cabDayRate]);
+  }, [days, scooterIslands, bicycleIslands, cabDayRate]);
 
   const grandTotal = hotelsTotal + addonsTotal + logisticsTotal + ferryTotal;
   const pax = adults + infants;
 
-  const toggleScooter = (island) => {
+  const toggleScooter = (island, enableExplicit) => {
     setScooterIslands((prev) => {
+      const next = new Set(prev);
+      if (typeof enableExplicit === "boolean") {
+        if (enableExplicit) next.add(island);
+        else next.delete(island);
+      } else {
+        if (next.has(island)) next.delete(island);
+        else next.add(island);
+      }
+      return next;
+    });
+  };
+
+  const toggleBicycle = (island) => {
+    setBicycleIslands((prev) => {
       const next = new Set(prev);
       if (next.has(island)) next.delete(island);
       else next.add(island);
@@ -876,27 +1023,27 @@ export default function App() {
                         </div>
                       </div>
 
-                     <button
-  onClick={() =>
-    setSelectedIds((prev) =>
-      prev.includes(l.id)
-        ? prev.filter((x) => x !== l.id)
-        : [...prev, l.id]
-    )
-  }
-  style={{
-    marginTop: 8,
-    width: "100%",
-    padding: "8px 10px",
-    borderRadius: 8,
-    border: "1px solid #0ea5e9",
-    background: picked ? "#0ea5e9" : "white",
-    color: picked ? "white" : "#0ea5e9",
-    fontWeight: 600,
-  }}
->
-  {picked ? "Added ✓" : "Add Location"}
-</button>
+                      <button
+                        onClick={() =>
+                          setSelectedIds((prev) =>
+                            prev.includes(l.id)
+                              ? prev.filter((x) => x !== l.id)
+                              : [...prev, l.id]
+                          )
+                        }
+                        style={{
+                          marginTop: 8,
+                          width: "100%",
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #0ea5e9",
+                          background: picked ? "#0ea5e9" : "white",
+                          color: picked ? "white" : "#0ea5e9",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {picked ? "Selected" : "Select"}
+                      </button>
                     </div>
                   );
                 })}
@@ -1312,7 +1459,7 @@ export default function App() {
                       >
                         {CAB_MODELS.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.label} — {formatINR(c.dayRate)}/day
+                            {c.label} — {c.category}
                           </option>
                         ))}
                       </select>
@@ -1325,8 +1472,7 @@ export default function App() {
                       marginBottom: 6,
                     }}
                   >
-                    Scooter per island (separate from cab, overrides to scooter
-                    on those islands):
+                    Scooter rental per island (overrides cab on those islands):
                   </div>
                   <div
                     style={{
@@ -1335,31 +1481,135 @@ export default function App() {
                       gap: 10,
                     }}
                   >
-                    {Array.from(
-                      new Set(days.map((d) => d.island))
-                    )
+                    {Array.from(new Set(days.map((d) => d.island)))
                       .filter(Boolean)
-                      .map((isl) => (
-                        <label
-                          key={isl}
-                          style={{
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 8,
-                            padding: "6px 10px",
-                            background: "white",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={scooterIslands.has(isl)}
-                            onChange={() => toggleScooter(isl)}
-                            style={{ marginRight: 6 }}
-                          />
-                          {isl} — {formatINR(SCOOTER_DAY_RATE)}/day
-                        </label>
-                      ))}
+                      .map((isl) => {
+                        const value = scooterIslands.has(isl)
+                          ? "scooter"
+                          : "none";
+                        return (
+                          <label
+                            key={isl}
+                            style={{
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 8,
+                              padding: "6px 10px",
+                              background: "white",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 4,
+                              minWidth: 200,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "#0f172a",
+                              }}
+                            >
+                              {isl}
+                            </span>
+                            <select
+                              value={value}
+                              onChange={(e) =>
+                                toggleScooter(
+                                  isl,
+                                  e.target.value === "scooter"
+                                )
+                              }
+                              style={{
+                                fontSize: 12,
+                                padding: "4px 6px",
+                                borderRadius: 6,
+                                border: "1px solid #cbd5f5",
+                              }}
+                            >
+                              <option value="none">No scooter</option>
+                              <option value="scooter">
+                                Scooter rental — {formatINR(SCOOTER_DAY_RATE)}/day
+                              </option>
+                            </select>
+                          </label>
+                        );
+                      })}
                   </div>
-                </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#475569",
+                      marginTop: 10,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Bicycle rental on select islands (Havelock / Neil / Port Blair):
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 10,
+                    }}
+                  >
+                    {Array.from(new Set(days.map((d) => d.island)))
+                      .filter((isl) =>
+                        [
+                          "Havelock (Swaraj Dweep)",
+                          "Neil (Shaheed Dweep)",
+                          "Port Blair (South Andaman)",
+                        ].includes(isl)
+                      )
+                      .map((isl) => {
+                        const value = bicycleIslands.has(isl)
+                          ? "bicycle"
+                          : "none";
+                        return (
+                          <label
+                            key={isl}
+                            style={{
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 8,
+                              padding: "6px 10px",
+                              background: "white",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 4,
+                              minWidth: 200,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "#0f172a",
+                              }}
+                            >
+                              {isl}
+                            </span>
+                            <select
+                              value={value}
+                              onChange={(e) =>
+                                toggleBicycle(
+                                  isl,
+                                  e.target.value === "bicycle"
+                                )
+                              }
+                              style={{
+                                fontSize: 12,
+                                padding: "4px 6px",
+                                borderRadius: 6,
+                                border: "1px solid #cbd5f5",
+                              }}
+                            >
+                              <option value="none">No cycling</option>
+                              <option value="bicycle">
+                                Bicycle rental — {formatINR(BICYCLE_DAY_RATE)}/day
+                              </option>
+                            </select>
+                          </label>
+                        );
+                      })}
+                  </div>                </div>
               </div>
               <FooterNav
                 onPrev={() => setStep(4)}
